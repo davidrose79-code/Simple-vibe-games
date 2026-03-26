@@ -13,6 +13,7 @@
       flex-direction: column;
       align-items: center;
       padding: 60px 24px 80px;
+      overflow-x: hidden;
     }
 
     header {
@@ -37,6 +38,17 @@
       color: var(--color-subtle);
       text-align: center;
     }
+
+    /* Tighter row-gap for the hex effect */
+    .grid {
+      row-gap: 14px;
+    }
+
+    /* Two-glyph circles: N&C and Memory Cards */
+    .circle-duo {
+      font-size: calc(var(--circle-size) * 0.23);
+      letter-spacing: 0.02em;
+    }
   </style>
 </head>
 <body>
@@ -48,20 +60,20 @@
 
   <main>
     <nav aria-label="Games">
-      <div class="grid">
+      <div class="grid" id="game-grid">
 
         <a href="games/noughts-and-crosses/index.html"
            class="game-card"
            aria-label="Play Noughts and Crosses">
-          <div class="circle" role="img" aria-hidden="true">⭕</div>
+          <div class="circle circle-duo" role="img" aria-hidden="true">⭕❌</div>
           <span class="label">Noughts &amp; Crosses</span>
         </a>
 
         <a href="games/minesweeper/index.html"
            class="game-card"
-           aria-label="Play Minesweeper">
-          <div class="circle" role="img" aria-hidden="true">💣</div>
-          <span class="label">Minesweeper</span>
+           aria-label="Play Worm Hunt">
+          <div class="circle" role="img" aria-hidden="true">🪱</div>
+          <span class="label">Worm Hunt</span>
         </a>
 
         <a href="games/word-search/index.html"
@@ -74,7 +86,7 @@
         <a href="games/memory-cards/index.html"
            class="game-card"
            aria-label="Play Memory Cards">
-          <div class="circle" role="img" aria-hidden="true">🃏</div>
+          <div class="circle circle-duo" role="img" aria-hidden="true">🃏🃏</div>
           <span class="label">Memory Cards</span>
         </a>
 
@@ -87,7 +99,6 @@
 
         <!-- Planned games — uncomment and link when ready -->
         <!--
-
         <a href="games/snake/index.html"
            class="game-card"
            aria-label="Play Snake">
@@ -103,6 +114,56 @@
   <footer>
     <p>Simple Vibe Games &mdash; open in any browser, no account needed.</p>
   </footer>
+
+  <script>
+    // ── Hexagonal grid layout ──────────────────────────────────
+    // Offsets alternating rows by half a column step, creating a
+    // honeycomb cluster feel — only when 3+ cards fit per row.
+    function hexLayout() {
+      const cards = [...document.querySelectorAll('.game-card')];
+      if (cards.length < 3) return;
+
+      // Reset any previous transforms
+      cards.forEach(c => { c.style.transform = ''; });
+
+      requestAnimationFrame(() => {
+        // Group cards into rows by matching offsetTop values
+        const rows = [];
+        let curTop = -1, curRow = [];
+        cards.forEach(card => {
+          const top = card.offsetTop;
+          if (top !== curTop) {
+            if (curRow.length) rows.push(curRow);
+            curRow = [card];
+            curTop = top;
+          } else {
+            curRow.push(card);
+          }
+        });
+        if (curRow.length) rows.push(curRow);
+
+        // Only hex-offset when rows have 3+ cards (tablet/desktop)
+        const maxRowLen = Math.max(...rows.map(r => r.length));
+        if (maxRowLen < 3 || rows.length < 2) return;
+
+        // Half-step = half the distance between two adjacent card centres
+        const firstRow = rows.find(r => r.length >= 2);
+        if (!firstRow) return;
+        const halfStep = (firstRow[1].offsetLeft - firstRow[0].offsetLeft) / 2;
+
+        rows.forEach((row, i) => {
+          if (i % 2 === 1) {
+            row.forEach(card => {
+              card.style.transform = `translateX(${halfStep}px)`;
+            });
+          }
+        });
+      });
+    }
+
+    window.addEventListener('load', hexLayout);
+    window.addEventListener('resize', hexLayout);
+  </script>
 
 </body>
 </html>

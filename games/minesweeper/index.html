@@ -3,20 +3,569 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Minesweeper — coming soon to Simple Vibe Games." />
-  <title>Minesweeper — Simple Vibe Games</title>
+  <meta name="description" content="Worm Hunt — tap the safe patches and avoid the worms! Simple Vibe Games." />
+  <title>Worm Hunt — Simple Vibe Games</title>
   <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: 32px 24px 64px;
+    }
+
+    .top-nav { width: 100%; max-width: 520px; }
+
+    header {
+      text-align: center;
+      margin-top: 24px;
+    }
+
+    header h1 { font-size: clamp(1.75rem, 6vw, 2.75rem); }
+
+    header p {
+      margin-top: 4px;
+      font-size: 0.9375rem;
+      color: var(--color-subtle);
+    }
+
+    /* ── Difficulty buttons ── */
+    .difficulty {
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+      justify-content: center;
+    }
+
+    .diff-btn {
+      padding: 8px 20px;
+      border: 2px solid var(--color-surface);
+      border-radius: 980px;
+      background: var(--color-surface);
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-subtle);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+    }
+
+    .diff-btn.active {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: #fff;
+    }
+
+    .diff-btn:active { transform: scale(0.96); }
+
+    @media (hover: hover) {
+      .diff-btn:not(.active):hover {
+        border-color: var(--color-accent);
+        color: var(--color-accent);
+      }
+    }
+
+    /* ── Stats ── */
+    .stats {
+      display: flex;
+      gap: 40px;
+      margin-top: 18px;
+      justify-content: center;
+    }
+
+    .stat-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .stat-label {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--color-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--color-text);
+    }
+
+    /* ── Hint bar ── */
+    .hint-bar {
+      margin-top: 8px;
+      font-size: 0.8125rem;
+      color: var(--color-subtle);
+      text-align: center;
+    }
+
+    /* ── Status ── */
+    .status {
+      margin-top: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-subtle);
+      min-height: 1.5em;
+      text-align: center;
+      transition: color 200ms ease;
+    }
+
+    .status.win  { color: #2e7d32; }
+    .status.lose { color: #c62828; }
+
+    /* ── Garden grid ── */
+    .grid-wrap {
+      margin-top: 18px;
+      padding: 10px;
+      background: #6aaa4a;    /* garden grass surround */
+      border-radius: 14px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    }
+
+    .cell-grid {
+      display: grid;
+      gap: 3px;
+      /* width and grid-template-columns set by JS */
+    }
+
+    /* ── Cells ── */
+    .cell {
+      aspect-ratio: 1;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color 120ms ease, transform 80ms ease;
+      background: #a07840;     /* hidden soil */
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.12);
+    }
+
+    .cell:active { transform: scale(0.92); }
+
+    /* Flagged */
+    .cell.flagged {
+      background: #8b6530;
+    }
+
+    /* Revealed empty / numbered */
+    .cell.revealed {
+      background: #d4edda;
+      box-shadow: none;
+      cursor: default;
+    }
+
+    /* Revealed worm (exploded) */
+    .cell.exploded {
+      background: #ffcdd2;
+      box-shadow: none;
+    }
+
+    /* Wrong flag (not a worm, but was flagged) */
+    .cell.wrong-flag {
+      background: #ffcdd2;
+    }
+
+    /* ── Play again ── */
+    .btn-play-again {
+      margin-top: 28px;
+      padding: 14px 36px;
+      background: var(--color-accent);
+      color: #fff;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 980px;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      transition: opacity 200ms ease, transform 150ms ease;
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .btn-play-again.visible {
+      opacity: 1;
+      pointer-events: auto;
+      visibility: visible;
+    }
+
+    .btn-play-again:active { transform: scale(0.97); }
+
+    @media (hover: hover) {
+      .btn-play-again:hover { opacity: 0.85; }
+    }
+  </style>
 </head>
 <body>
 
-  <div class="coming-soon">
-    <div class="icon" role="img" aria-label="Minesweeper icon">💣</div>
-    <h1>Minesweeper</h1>
-    <p>This game is coming soon. Check back later!</p>
-    <a href="../../index.html" class="back-link" aria-label="Back to all games">
-      All Games
-    </a>
+  <nav class="top-nav">
+    <a href="../../index.html" class="back-link" aria-label="Back to all games">All Games</a>
+  </nav>
+
+  <header>
+    <h1>Worm Hunt</h1>
+    <p>Tap safely — don't dig up the worms!</p>
+  </header>
+
+  <div class="difficulty" role="group" aria-label="Difficulty">
+    <button class="diff-btn active" data-level="easy"   aria-pressed="true">Easy</button>
+    <button class="diff-btn"        data-level="medium" aria-pressed="false">Medium</button>
+    <button class="diff-btn"        data-level="hard"   aria-pressed="false">Hard</button>
   </div>
+
+  <div class="stats" aria-label="Game stats">
+    <div class="stat-block">
+      <span class="stat-label">🪱 Worms</span>
+      <span class="stat-value" id="worm-count">8</span>
+    </div>
+    <div class="stat-block">
+      <span class="stat-label">⏱ Time</span>
+      <span class="stat-value" id="timer">0:00</span>
+    </div>
+  </div>
+
+  <p class="hint-bar">Hold a patch to plant a flag 🚩</p>
+
+  <p class="status" id="status" aria-live="polite" aria-atomic="true"></p>
+
+  <div class="grid-wrap">
+    <div class="cell-grid" id="cell-grid" aria-label="Garden grid"></div>
+  </div>
+
+  <button class="btn-play-again" id="btn-play-again" aria-label="Play again">
+    Play Again
+  </button>
+
+  <script>
+    // ── Config ─────────────────────────────────────────────────
+    const CONFIGS = {
+      easy:   { size: 8,  worms: 8  },
+      medium: { size: 10, worms: 18 },
+      hard:   { size: 12, worms: 30 },
+    };
+
+    // Number colours (classic Minesweeper palette)
+    const NUM_COLORS = ['','#1565c0','#2e7d32','#c62828','#283593','#b71c1c','#00695c','#212121','#757575'];
+
+    const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+
+    // ── State ───────────────────────────────────────────────────
+    let currentLevel = 'easy';
+    let size         = 8;
+    let totalWorms   = 8;
+    let grid         = [];      // grid[r][c] = { worm, count, revealed, flagged }
+    let firstTap     = true;    // mines placed after first tap
+    let gameOver     = false;
+    let seconds      = 0;
+    let timerInterval = null;
+
+    // Long-press tracking
+    let pressTimer   = null;
+    let pressBlocked = false;   // true if long-press fired (suppress tap)
+
+    // ── DOM refs ────────────────────────────────────────────────
+    const gridEl       = document.getElementById('cell-grid');
+    const wormCountEl  = document.getElementById('worm-count');
+    const timerEl      = document.getElementById('timer');
+    const statusEl     = document.getElementById('status');
+    const playAgainBtn = document.getElementById('btn-play-again');
+    const diffBtns     = document.querySelectorAll('.diff-btn');
+
+    // ── Grid helpers ────────────────────────────────────────────
+    function getCellEl(r, c) {
+      return gridEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+    }
+
+    function inBounds(r, c) {
+      return r >= 0 && r < size && c >= 0 && c < size;
+    }
+
+    // ── Build empty grid ────────────────────────────────────────
+    function initGrid() {
+      grid = Array.from({length: size}, () =>
+        Array.from({length: size}, () => ({
+          worm: false, count: 0, revealed: false, flagged: false
+        }))
+      );
+    }
+
+    // ── Place worms (after first tap, avoiding safe zone) ───────
+    function placeMines(safeR, safeC) {
+      const safe = new Set();
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          safe.add(`${safeR + dr},${safeC + dc}`);
+        }
+      }
+
+      let placed = 0;
+      while (placed < totalWorms) {
+        const r = Math.floor(Math.random() * size);
+        const c = Math.floor(Math.random() * size);
+        if (!safe.has(`${r},${c}`) && !grid[r][c].worm) {
+          grid[r][c].worm = true;
+          placed++;
+        }
+      }
+    }
+
+    // ── Calculate adjacency counts ───────────────────────────────
+    function calculateCounts() {
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (grid[r][c].worm) continue;
+          grid[r][c].count = DIRS.reduce((sum, [dr, dc]) => {
+            const nr = r + dr, nc = c + dc;
+            return sum + (inBounds(nr, nc) && grid[nr][nc].worm ? 1 : 0);
+          }, 0);
+        }
+      }
+    }
+
+    // ── Render a single cell ─────────────────────────────────────
+    function renderCell(r, c) {
+      const cell = grid[r][c];
+      const el   = getCellEl(r, c);
+      el.className = 'cell';
+      el.textContent = '';
+      el.style.color = '';
+      el.style.fontSize = '';
+
+      if (cell.revealed) {
+        el.classList.add('revealed');
+        if (cell.worm) {
+          el.textContent = '🪱';
+        } else if (cell.count > 0) {
+          el.textContent = cell.count;
+          el.style.color = NUM_COLORS[cell.count];
+        }
+      } else if (cell.flagged) {
+        el.classList.add('flagged');
+        el.textContent = '🚩';
+      }
+    }
+
+    // ── Flood-fill reveal (DFS) ──────────────────────────────────
+    // Referenced pattern from github.com/kubowania/minesweeper &
+    // github.com/zackaids/Minesweeper — recursive DFS cascade
+    function floodReveal(r, c) {
+      if (!inBounds(r, c)) return;
+      const cell = grid[r][c];
+      if (cell.revealed || cell.flagged || cell.worm) return;
+
+      cell.revealed = true;
+      renderCell(r, c);
+
+      if (cell.count === 0) {
+        DIRS.forEach(([dr, dc]) => floodReveal(r + dr, c + dc));
+      }
+    }
+
+    // ── Win check ────────────────────────────────────────────────
+    function checkWin() {
+      const won = grid.every(row => row.every(cell => cell.worm || cell.revealed));
+      if (won) endGame('win');
+    }
+
+    // ── Tap handler ──────────────────────────────────────────────
+    function handleTap(r, c) {
+      if (gameOver) return;
+      const cell = grid[r][c];
+      if (cell.flagged || cell.revealed) return;
+
+      // First tap: place mines, start timer
+      if (firstTap) {
+        firstTap = false;
+        placeMines(r, c);
+        calculateCounts();
+        startTimer();
+      }
+
+      if (cell.worm) {
+        cell.revealed = true;
+        renderCell(r, c);
+        getCellEl(r, c).classList.add('exploded');
+        endGame('lose', r, c);
+        return;
+      }
+
+      floodReveal(r, c);
+      checkWin();
+    }
+
+    // ── Flag handler ─────────────────────────────────────────────
+    function toggleFlag(r, c) {
+      if (gameOver) return;
+      const cell = grid[r][c];
+      if (cell.revealed) return;
+      cell.flagged = !cell.flagged;
+      renderCell(r, c);
+      updateWormCount();
+    }
+
+    function updateWormCount() {
+      const flags = grid.flat().filter(c => c.flagged).length;
+      wormCountEl.textContent = Math.max(0, totalWorms - flags);
+    }
+
+    // ── Timer ────────────────────────────────────────────────────
+    function startTimer() {
+      timerInterval = setInterval(() => {
+        seconds++;
+        timerEl.textContent = formatTime(seconds);
+      }, 1000);
+    }
+
+    function formatTime(s) {
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    }
+
+    // ── End game ─────────────────────────────────────────────────
+    function endGame(result, hitR, hitC) {
+      gameOver = true;
+      clearInterval(timerInterval);
+
+      if (result === 'lose') {
+        // Reveal all worms; mark wrong flags
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size; c++) {
+            const cell = grid[r][c];
+            if (cell.worm && !cell.flagged) {
+              cell.revealed = true;
+              renderCell(r, c);
+            } else if (!cell.worm && cell.flagged) {
+              const el = getCellEl(r, c);
+              el.textContent = '❌';
+              el.classList.add('wrong-flag');
+            }
+          }
+        }
+        if (hitR !== undefined) getCellEl(hitR, hitC).classList.add('exploded');
+        statusEl.textContent = 'Oh no — you found a worm! 🪱';
+        statusEl.className = 'status lose';
+      } else {
+        // Auto-flag remaining worms
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size; c++) {
+            const cell = grid[r][c];
+            if (cell.worm && !cell.flagged) { cell.flagged = true; renderCell(r, c); }
+          }
+        }
+        statusEl.textContent = `Garden clear in ${formatTime(seconds)}! 🌻`;
+        statusEl.className = 'status win';
+      }
+
+      playAgainBtn.classList.add('visible');
+    }
+
+    // ── Build DOM grid ───────────────────────────────────────────
+    function buildGrid() {
+      const maxPx   = Math.min(window.innerWidth * 0.88, 380);
+      const cellPx  = Math.floor((maxPx - 3 * (size - 1)) / size);
+      const gridPx  = cellPx * size + 3 * (size - 1);
+      const emojiFz = Math.max(10, Math.floor(cellPx * 0.52));
+      const numFz   = Math.max(10, Math.floor(cellPx * 0.48));
+
+      gridEl.style.gridTemplateColumns = `repeat(${size}, ${cellPx}px)`;
+      gridEl.style.width = `${gridPx}px`;
+      gridEl.innerHTML = '';
+
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          const el = document.createElement('div');
+          el.className = 'cell';
+          el.dataset.r = r;
+          el.dataset.c = c;
+          el.style.width  = `${cellPx}px`;
+          el.style.height = `${cellPx}px`;
+          el.style.fontSize = `${numFz}px`;
+          el.setAttribute('aria-label', `Garden patch ${r * size + c + 1}`);
+
+          // Touch: tap = reveal, long-press (500ms) = flag
+          el.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            pressBlocked = false;
+            pressTimer = setTimeout(() => {
+              pressBlocked = true;
+              el.style.fontSize = `${emojiFz}px`;
+              toggleFlag(r, c);
+            }, 500);
+          }, {passive: false});
+
+          el.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            clearTimeout(pressTimer);
+            if (!pressBlocked) {
+              el.style.fontSize = `${emojiFz}px`;
+              handleTap(r, c);
+            }
+          }, {passive: false});
+
+          el.addEventListener('touchmove', () => {
+            clearTimeout(pressTimer);
+            pressBlocked = true;
+          }, {passive: true});
+
+          gridEl.appendChild(el);
+        }
+      }
+    }
+
+    // ── New game ─────────────────────────────────────────────────
+    function newGame() {
+      clearInterval(timerInterval);
+      const cfg  = CONFIGS[currentLevel];
+      size       = cfg.size;
+      totalWorms = cfg.worms;
+      firstTap   = true;
+      gameOver   = false;
+      seconds    = 0;
+
+      wormCountEl.textContent = totalWorms;
+      timerEl.textContent     = '0:00';
+      statusEl.textContent    = '';
+      statusEl.className      = 'status';
+      playAgainBtn.classList.remove('visible');
+
+      initGrid();
+      buildGrid();
+    }
+
+    // ── Difficulty buttons ────────────────────────────────────────
+    diffBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.level === currentLevel) return;
+        diffBtns.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+        currentLevel = btn.dataset.level;
+        newGame();
+      });
+    });
+
+    playAgainBtn.addEventListener('click', newGame);
+
+    // ── Init ──────────────────────────────────────────────────────
+    newGame();
+  </script>
 
 </body>
 </html>
