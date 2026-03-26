@@ -3,20 +3,402 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Word Search — coming soon to Simple Vibe Games." />
+  <meta name="description" content="Word Search — find the hidden words. Simple Vibe Games." />
   <title>Word Search — Simple Vibe Games</title>
   <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: 32px 24px 64px;
+    }
+
+    .top-nav { width: 100%; max-width: 520px; }
+
+    header {
+      text-align: center;
+      margin-top: 28px;
+    }
+
+    header h1 { font-size: clamp(1.75rem, 6vw, 2.75rem); }
+
+    /* ── Status ── */
+    .status {
+      margin-top: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-subtle);
+      min-height: 1.5em;
+      text-align: center;
+      transition: color 200ms ease;
+    }
+
+    .status.win { color: var(--color-accent); }
+
+    /* ── Letter grid ── */
+    .grid-wrap {
+      margin-top: 24px;
+      /* Prevent default touch scroll/zoom on the grid */
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .letter-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 3px;
+      width: min(352px, 96vw);
+    }
+
+    .cell {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(0.9rem, 3.5vw, 1.1rem);
+      font-weight: 600;
+      border-radius: 6px;
+      background: var(--color-surface);
+      color: var(--color-text);
+      transition: background-color 150ms ease, color 150ms ease;
+      letter-spacing: 0;
+    }
+
+    /* Finger-drag highlight */
+    .cell.selecting {
+      background: #cce0f8;
+      color: var(--color-accent);
+    }
+
+    /* Permanently found */
+    .cell.found {
+      background: var(--color-accent);
+      color: #fff;
+    }
+
+    /* ── Word list ── */
+    .word-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      justify-content: center;
+      margin-top: 24px;
+      max-width: min(352px, 96vw);
+    }
+
+    .word-item {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-text);
+      letter-spacing: 0.05em;
+      transition: color 200ms ease;
+      position: relative;
+    }
+
+    .word-item.found {
+      color: var(--color-accent);
+      text-decoration: line-through;
+      text-decoration-color: var(--color-accent);
+    }
+
+    /* ── Play again ── */
+    .btn-play-again {
+      margin-top: 32px;
+      padding: 14px 36px;
+      background: var(--color-accent);
+      color: #fff;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 980px;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      transition: opacity 200ms ease, transform 150ms ease;
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .btn-play-again.visible {
+      opacity: 1;
+      pointer-events: auto;
+      visibility: visible;
+    }
+
+    .btn-play-again:active { transform: scale(0.97); }
+
+    @media (hover: hover) {
+      .btn-play-again:hover { opacity: 0.85; }
+    }
+  </style>
 </head>
 <body>
 
-  <div class="coming-soon">
-    <div class="icon" role="img" aria-label="Word Search icon">🔤</div>
+  <nav class="top-nav">
+    <a href="../../index.html" class="back-link" aria-label="Back to all games">All Games</a>
+  </nav>
+
+  <header>
     <h1>Word Search</h1>
-    <p>This game is coming soon. Check back later!</p>
-    <a href="../../index.html" class="back-link" aria-label="Back to all games">
-      All Games
-    </a>
+  </header>
+
+  <p class="status" id="status" aria-live="polite" aria-atomic="true">
+    Swipe to find all the words!
+  </p>
+
+  <div class="grid-wrap" id="grid-wrap">
+    <div class="letter-grid" id="letter-grid" aria-label="Word search grid"></div>
   </div>
+
+  <div class="word-list" id="word-list" aria-label="Words to find"></div>
+
+  <button class="btn-play-again" id="btn-play-again" aria-label="Play again">
+    Play Again
+  </button>
+
+  <script>
+    // ── Puzzle config ───────────────────────────────────────
+    const SIZE  = 8;
+    const WORDS = ['CAT', 'DOG', 'SUN', 'HAT', 'BEE', 'FLY', 'RED', 'MAP'];
+    const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+    // Direction vectors: [rowDelta, colDelta]
+    const DIRECTIONS = [
+      [0,  1],  // right
+      [0, -1],  // left
+      [1,  0],  // down
+      [-1, 0],  // up
+    ];
+
+    // ── State ───────────────────────────────────────────────
+    let grid        = [];   // 2D array of letters
+    let placements  = [];   // [{word, cells:[{r,c}]}]
+    let foundWords  = new Set();
+    let dragStart   = null; // {r, c}
+    let dragCells   = [];   // currently highlighted cells
+
+    // ── DOM refs ────────────────────────────────────────────
+    const gridEl      = document.getElementById('letter-grid');
+    const wordListEl  = document.getElementById('word-list');
+    const statusEl    = document.getElementById('status');
+    const playAgainBtn = document.getElementById('btn-play-again');
+    const gridWrapEl  = document.getElementById('grid-wrap');
+
+    // ── Puzzle generation ───────────────────────────────────
+    function generatePuzzle() {
+      grid       = Array.from({length: SIZE}, () => Array(SIZE).fill(''));
+      placements = [];
+
+      for (const word of WORDS) {
+        let placed = false;
+        let attempts = 0;
+
+        while (!placed && attempts < 300) {
+          attempts++;
+          const [dr, dc] = DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+
+          // Determine valid starting positions so the word fits in bounds
+          const rMin = dr === -1 ? word.length - 1 : 0;
+          const rMax = dr ===  1 ? SIZE - word.length : SIZE - 1;
+          const cMin = dc === -1 ? word.length - 1 : 0;
+          const cMax = dc ===  1 ? SIZE - word.length : SIZE - 1;
+
+          if (rMin > rMax || cMin > cMax) continue;
+
+          const r0 = rMin + Math.floor(Math.random() * (rMax - rMin + 1));
+          const c0 = cMin + Math.floor(Math.random() * (cMax - cMin + 1));
+
+          // Build cell list
+          const cells = [];
+          for (let i = 0; i < word.length; i++) {
+            cells.push({r: r0 + dr * i, c: c0 + dc * i, letter: word[i]});
+          }
+
+          // Check if every cell is empty or already has the correct letter
+          if (cells.every(({r, c, letter}) => grid[r][c] === '' || grid[r][c] === letter)) {
+            cells.forEach(({r, c, letter}) => { grid[r][c] = letter; });
+            placements.push({word, cells: cells.map(({r, c}) => ({r, c}))});
+            placed = true;
+          }
+        }
+      }
+
+      // Fill remaining empty cells with random letters
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (grid[r][c] === '') {
+            grid[r][c] = ALPHA[Math.floor(Math.random() * ALPHA.length)];
+          }
+        }
+      }
+    }
+
+    // ── Render ──────────────────────────────────────────────
+    function renderGrid() {
+      gridEl.innerHTML = '';
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.textContent = grid[r][c];
+          cell.dataset.r = r;
+          cell.dataset.c = c;
+          cell.setAttribute('aria-label', `Letter ${grid[r][c]}`);
+          gridEl.appendChild(cell);
+        }
+      }
+    }
+
+    function renderWordList() {
+      wordListEl.innerHTML = '';
+      WORDS.forEach(word => {
+        const span = document.createElement('span');
+        span.className = 'word-item';
+        span.id = `word-${word}`;
+        span.textContent = word;
+        span.setAttribute('aria-label', word);
+        wordListEl.appendChild(span);
+      });
+    }
+
+    function getCellEl(r, c) {
+      return gridEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+    }
+
+    // ── Touch selection ─────────────────────────────────────
+    function cellFromPoint(x, y) {
+      const el = document.elementFromPoint(x, y);
+      if (!el || !el.classList.contains('cell')) return null;
+      return {r: parseInt(el.dataset.r), c: parseInt(el.dataset.c)};
+    }
+
+    function cellsBetween(r1, c1, r2, c2) {
+      // Only allow straight lines (horizontal or vertical)
+      if (r1 === r2) {
+        const step = c2 >= c1 ? 1 : -1;
+        const cells = [];
+        for (let c = c1; c !== c2 + step; c += step) cells.push({r: r1, c});
+        return cells;
+      }
+      if (c1 === c2) {
+        const step = r2 >= r1 ? 1 : -1;
+        const cells = [];
+        for (let r = r1; r !== r2 + step; r += step) cells.push({r, c: c1});
+        return cells;
+      }
+      // Diagonal — not supported; just return the start cell
+      return [{r: r1, c: c1}];
+    }
+
+    function applySelecting(cells) {
+      // Clear previous selecting highlight (preserve found)
+      dragCells.forEach(({r, c}) => {
+        const el = getCellEl(r, c);
+        if (el && !el.classList.contains('found')) el.classList.remove('selecting');
+      });
+      dragCells = cells;
+      dragCells.forEach(({r, c}) => {
+        const el = getCellEl(r, c);
+        if (el && !el.classList.contains('found')) el.classList.add('selecting');
+      });
+    }
+
+    function clearSelecting() {
+      dragCells.forEach(({r, c}) => {
+        const el = getCellEl(r, c);
+        if (el) el.classList.remove('selecting');
+      });
+      dragCells = [];
+    }
+
+    function checkSelection(cells) {
+      const word = cells.map(({r, c}) => grid[r][c]).join('');
+      const wordRev = word.split('').reverse().join('');
+
+      const match = WORDS.find(w => (w === word || w === wordRev) && !foundWords.has(w));
+      if (!match) return;
+
+      foundWords.add(match);
+
+      // Mark cells as found
+      cells.forEach(({r, c}) => {
+        const el = getCellEl(r, c);
+        if (el) { el.classList.remove('selecting'); el.classList.add('found'); }
+      });
+
+      // Strike through the word in the list
+      const wordEl = document.getElementById(`word-${match}`);
+      if (wordEl) wordEl.classList.add('found');
+
+      // Update status
+      const remaining = WORDS.length - foundWords.size;
+      if (remaining === 0) {
+        endGame();
+      } else {
+        statusEl.textContent = `${remaining} word${remaining === 1 ? '' : 's'} left!`;
+      }
+    }
+
+    // ── Touch event handlers ────────────────────────────────
+    gridWrapEl.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const cell = cellFromPoint(touch.clientX, touch.clientY);
+      if (!cell) return;
+      dragStart = cell;
+      applySelecting([cell]);
+    }, {passive: false});
+
+    gridWrapEl.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (!dragStart) return;
+      const touch = e.touches[0];
+      const cell = cellFromPoint(touch.clientX, touch.clientY);
+      if (!cell) return;
+      const cells = cellsBetween(dragStart.r, dragStart.c, cell.r, cell.c);
+      applySelecting(cells);
+    }, {passive: false});
+
+    gridWrapEl.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (!dragStart || dragCells.length === 0) { dragStart = null; return; }
+      checkSelection([...dragCells]);
+      clearSelecting();
+      dragStart = null;
+    }, {passive: false});
+
+    // ── End / reset ─────────────────────────────────────────
+    function endGame() {
+      statusEl.textContent = 'You found them all! 🎉';
+      statusEl.className = 'status win';
+      playAgainBtn.classList.add('visible');
+    }
+
+    function resetGame() {
+      foundWords = new Set();
+      dragStart  = null;
+      dragCells  = [];
+      statusEl.textContent = 'Swipe to find all the words!';
+      statusEl.className   = 'status';
+      playAgainBtn.classList.remove('visible');
+      generatePuzzle();
+      renderGrid();
+      renderWordList();
+    }
+
+    playAgainBtn.addEventListener('click', resetGame);
+
+    // ── Init ────────────────────────────────────────────────
+    generatePuzzle();
+    renderGrid();
+    renderWordList();
+  </script>
 
 </body>
 </html>

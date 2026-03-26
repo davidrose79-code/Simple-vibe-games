@@ -28,9 +28,9 @@ python -m http.server 8080
 | Game | Status | Folder |
 |------|--------|--------|
 | Noughts and Crosses | Live | `games/noughts-and-crosses/` |
+| Memory Cards | Live | `games/memory-cards/` |
+| Word Search | Live | `games/word-search/` |
 | Minesweeper | Coming soon | `games/minesweeper/` |
-| Word Search | Coming soon | `games/word-search/` |
-| Memory Cards | Planned | — |
 | Hangman | Planned | — |
 | Snake | Planned | — |
 
