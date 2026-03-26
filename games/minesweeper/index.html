@@ -69,11 +69,51 @@
       }
     }
 
+    /* ── Mode toggle ── */
+    .mode-bar {
+      margin-top: 12px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .mode-btn {
+      padding: 9px 24px;
+      border: 2px solid var(--color-surface);
+      border-radius: 980px;
+      background: var(--color-surface);
+      font-family: inherit;
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--color-subtle);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease, transform 100ms ease;
+      letter-spacing: 0.02em;
+    }
+
+    /* Dig mode (default) — neutral */
+    .mode-btn.dig {
+      background: var(--color-surface);
+      border-color: var(--color-surface);
+      color: var(--color-text);
+    }
+
+    /* Flag mode — amber */
+    .mode-btn.flag {
+      background: #fff3e0;
+      border-color: #fb8c00;
+      color: #e65100;
+    }
+
+    .mode-btn:active { transform: scale(0.95); }
+
     /* ── Stats ── */
     .stats {
       display: flex;
-      gap: 40px;
-      margin-top: 18px;
+      gap: 32px;
+      margin-top: 16px;
       justify-content: center;
     }
 
@@ -99,13 +139,8 @@
       color: var(--color-text);
     }
 
-    /* ── Hint bar ── */
-    .hint-bar {
-      margin-top: 8px;
-      font-size: 0.8125rem;
-      color: var(--color-subtle);
-      text-align: center;
-    }
+    /* Best time smaller when it contains colons */
+    #best-time { font-size: 1.5rem; }
 
     /* ── Status ── */
     .status {
@@ -123,9 +158,9 @@
 
     /* ── Garden grid ── */
     .grid-wrap {
-      margin-top: 18px;
+      margin-top: 16px;
       padding: 10px;
-      background: #6aaa4a;    /* garden grass surround */
+      background: #6aaa4a;
       border-radius: 14px;
       box-shadow: 0 4px 14px rgba(0,0,0,0.12);
     }
@@ -133,7 +168,6 @@
     .cell-grid {
       display: grid;
       gap: 3px;
-      /* width and grid-template-columns set by JS */
     }
 
     /* ── Cells ── */
@@ -151,38 +185,32 @@
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
       transition: background-color 120ms ease, transform 80ms ease;
-      background: #a07840;     /* hidden soil */
+      background: #a07840;
       box-shadow: inset 0 -2px 0 rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.12);
     }
 
     .cell:active { transform: scale(0.92); }
 
-    /* Flagged */
-    .cell.flagged {
-      background: #8b6530;
+    /* In flag mode highlight unrevealed cells */
+    body.flag-mode .cell:not(.revealed):not(.flagged) {
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.12),
+                  0 0 0 1px rgba(251,140,0,0.5);
     }
 
-    /* Revealed empty / numbered */
+    .cell.flagged  { background: #8b6530; }
+
     .cell.revealed {
       background: #d4edda;
       box-shadow: none;
       cursor: default;
     }
 
-    /* Revealed worm (exploded) */
-    .cell.exploded {
-      background: #ffcdd2;
-      box-shadow: none;
-    }
-
-    /* Wrong flag (not a worm, but was flagged) */
-    .cell.wrong-flag {
-      background: #ffcdd2;
-    }
+    .cell.exploded  { background: #ffcdd2; box-shadow: none; }
+    .cell.wrong-flag { background: #ffcdd2; }
 
     /* ── Play again ── */
     .btn-play-again {
-      margin-top: 28px;
+      margin-top: 24px;
       padding: 14px 36px;
       background: var(--color-accent);
       color: #fff;
@@ -231,6 +259,12 @@
     <button class="diff-btn"        data-level="hard"   aria-pressed="false">Hard</button>
   </div>
 
+  <!-- Mode toggle -->
+  <div class="mode-bar">
+    <button class="mode-btn dig" id="mode-btn" aria-pressed="false"
+            aria-label="Switch to flag mode">⛏️ Digging</button>
+  </div>
+
   <div class="stats" aria-label="Game stats">
     <div class="stat-block">
       <span class="stat-label">🪱 Worms</span>
@@ -240,9 +274,11 @@
       <span class="stat-label">⏱ Time</span>
       <span class="stat-value" id="timer">0:00</span>
     </div>
+    <div class="stat-block">
+      <span class="stat-label">🏆 Best</span>
+      <span class="stat-value" id="best-time">—</span>
+    </div>
   </div>
-
-  <p class="hint-bar">Hold a patch to plant a flag 🚩</p>
 
   <p class="status" id="status" aria-live="polite" aria-atomic="true"></p>
 
@@ -262,32 +298,74 @@
       hard:   { size: 12, worms: 30 },
     };
 
-    // Number colours (classic Minesweeper palette)
     const NUM_COLORS = ['','#1565c0','#2e7d32','#c62828','#283593','#b71c1c','#00695c','#212121','#757575'];
-
     const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+    const LS_KEY = (level) => `wormhunt-best-${level}`;
 
     // ── State ───────────────────────────────────────────────────
     let currentLevel = 'easy';
     let size         = 8;
     let totalWorms   = 8;
-    let grid         = [];      // grid[r][c] = { worm, count, revealed, flagged }
-    let firstTap     = true;    // mines placed after first tap
+    let grid         = [];
+    let firstTap     = true;
     let gameOver     = false;
+    let flagMode     = false;   // false = dig mode, true = flag mode
     let seconds      = 0;
     let timerInterval = null;
 
     // Long-press tracking
     let pressTimer   = null;
-    let pressBlocked = false;   // true if long-press fired (suppress tap)
+    let pressBlocked = false;
 
     // ── DOM refs ────────────────────────────────────────────────
     const gridEl       = document.getElementById('cell-grid');
     const wormCountEl  = document.getElementById('worm-count');
     const timerEl      = document.getElementById('timer');
+    const bestTimeEl   = document.getElementById('best-time');
     const statusEl     = document.getElementById('status');
     const playAgainBtn = document.getElementById('btn-play-again');
+    const modeBtnEl    = document.getElementById('mode-btn');
     const diffBtns     = document.querySelectorAll('.diff-btn');
+
+    // ── Best time (localStorage) ─────────────────────────────────
+    function getBestTime(level) {
+      const val = localStorage.getItem(LS_KEY(level));
+      return val ? parseInt(val, 10) : null;
+    }
+
+    function saveBestTime(level, secs) {
+      const current = getBestTime(level);
+      if (current === null || secs < current) {
+        localStorage.setItem(LS_KEY(level), secs);
+        return true; // new record
+      }
+      return false;
+    }
+
+    function renderBestTime() {
+      const best = getBestTime(currentLevel);
+      bestTimeEl.textContent = best !== null ? formatTime(best) : '—';
+    }
+
+    // ── Mode toggle ──────────────────────────────────────────────
+    function setFlagMode(enabled) {
+      flagMode = enabled;
+      if (enabled) {
+        modeBtnEl.textContent = '🚩 Flagging';
+        modeBtnEl.className   = 'mode-btn flag';
+        modeBtnEl.setAttribute('aria-pressed', 'true');
+        modeBtnEl.setAttribute('aria-label', 'Switch to dig mode');
+        document.body.classList.add('flag-mode');
+      } else {
+        modeBtnEl.textContent = '⛏️ Digging';
+        modeBtnEl.className   = 'mode-btn dig';
+        modeBtnEl.setAttribute('aria-pressed', 'false');
+        modeBtnEl.setAttribute('aria-label', 'Switch to flag mode');
+        document.body.classList.remove('flag-mode');
+      }
+    }
+
+    modeBtnEl.addEventListener('click', () => setFlagMode(!flagMode));
 
     // ── Grid helpers ────────────────────────────────────────────
     function getCellEl(r, c) {
@@ -307,14 +385,12 @@
       );
     }
 
-    // ── Place worms (after first tap, avoiding safe zone) ───────
+    // ── Place worms after first tap (3×3 safe zone) ──────────────
     function placeMines(safeR, safeC) {
       const safe = new Set();
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
+      for (let dr = -1; dr <= 1; dr++)
+        for (let dc = -1; dc <= 1; dc++)
           safe.add(`${safeR + dr},${safeC + dc}`);
-        }
-      }
 
       let placed = 0;
       while (placed < totalWorms) {
@@ -329,7 +405,7 @@
 
     // ── Calculate adjacency counts ───────────────────────────────
     function calculateCounts() {
-      for (let r = 0; r < size; r++) {
+      for (let r = 0; r < size; r++)
         for (let c = 0; c < size; c++) {
           if (grid[r][c].worm) continue;
           grid[r][c].count = DIRS.reduce((sum, [dr, dc]) => {
@@ -337,7 +413,6 @@
             return sum + (inBounds(nr, nc) && grid[nr][nc].worm ? 1 : 0);
           }, 0);
         }
-      }
     }
 
     // ── Render a single cell ─────────────────────────────────────
@@ -347,7 +422,6 @@
       el.className = 'cell';
       el.textContent = '';
       el.style.color = '';
-      el.style.fontSize = '';
 
       if (cell.revealed) {
         el.classList.add('revealed');
@@ -364,34 +438,46 @@
     }
 
     // ── Flood-fill reveal (DFS) ──────────────────────────────────
-    // Referenced pattern from github.com/kubowania/minesweeper &
-    // github.com/zackaids/Minesweeper — recursive DFS cascade
     function floodReveal(r, c) {
       if (!inBounds(r, c)) return;
       const cell = grid[r][c];
       if (cell.revealed || cell.flagged || cell.worm) return;
-
       cell.revealed = true;
       renderCell(r, c);
-
-      if (cell.count === 0) {
+      if (cell.count === 0)
         DIRS.forEach(([dr, dc]) => floodReveal(r + dr, c + dc));
-      }
     }
 
     // ── Win check ────────────────────────────────────────────────
     function checkWin() {
-      const won = grid.every(row => row.every(cell => cell.worm || cell.revealed));
-      if (won) endGame('win');
+      if (grid.every(row => row.every(cell => cell.worm || cell.revealed)))
+        endGame('win');
     }
 
-    // ── Tap handler ──────────────────────────────────────────────
-    function handleTap(r, c) {
+    // ── Primary action (what a short tap does) ───────────────────
+    function primaryAction(r, c) {
+      if (flagMode) {
+        toggleFlag(r, c);
+      } else {
+        handleDig(r, c);
+      }
+    }
+
+    // ── Secondary action (what a long-press does) ────────────────
+    function secondaryAction(r, c) {
+      if (flagMode) {
+        handleDig(r, c);
+      } else {
+        toggleFlag(r, c);
+      }
+    }
+
+    // ── Dig handler ───────────────────────────────────────────────
+    function handleDig(r, c) {
       if (gameOver) return;
       const cell = grid[r][c];
       if (cell.flagged || cell.revealed) return;
 
-      // First tap: place mines, start timer
       if (firstTap) {
         firstTap = false;
         placeMines(r, c);
@@ -444,32 +530,32 @@
       clearInterval(timerInterval);
 
       if (result === 'lose') {
-        // Reveal all worms; mark wrong flags
-        for (let r = 0; r < size; r++) {
+        for (let r = 0; r < size; r++)
           for (let c = 0; c < size; c++) {
             const cell = grid[r][c];
-            if (cell.worm && !cell.flagged) {
-              cell.revealed = true;
-              renderCell(r, c);
-            } else if (!cell.worm && cell.flagged) {
+            if (cell.worm && !cell.flagged) { cell.revealed = true; renderCell(r, c); }
+            else if (!cell.worm && cell.flagged) {
               const el = getCellEl(r, c);
               el.textContent = '❌';
               el.classList.add('wrong-flag');
             }
           }
-        }
         if (hitR !== undefined) getCellEl(hitR, hitC).classList.add('exploded');
         statusEl.textContent = 'Oh no — you found a worm! 🪱';
-        statusEl.className = 'status lose';
+        statusEl.className   = 'status lose';
       } else {
         // Auto-flag remaining worms
-        for (let r = 0; r < size; r++) {
+        for (let r = 0; r < size; r++)
           for (let c = 0; c < size; c++) {
             const cell = grid[r][c];
             if (cell.worm && !cell.flagged) { cell.flagged = true; renderCell(r, c); }
           }
-        }
-        statusEl.textContent = `Garden clear in ${formatTime(seconds)}! 🌻`;
+
+        const isRecord = saveBestTime(currentLevel, seconds);
+        renderBestTime();
+        statusEl.textContent = isRecord
+          ? `New best: ${formatTime(seconds)}! 🏆`
+          : `Garden clear in ${formatTime(seconds)}! 🌻`;
         statusEl.className = 'status win';
       }
 
@@ -486,7 +572,7 @@
 
       gridEl.style.gridTemplateColumns = `repeat(${size}, ${cellPx}px)`;
       gridEl.style.width = `${gridPx}px`;
-      gridEl.innerHTML = '';
+      gridEl.innerHTML   = '';
 
       for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
@@ -494,19 +580,18 @@
           el.className = 'cell';
           el.dataset.r = r;
           el.dataset.c = c;
-          el.style.width  = `${cellPx}px`;
-          el.style.height = `${cellPx}px`;
+          el.style.width    = `${cellPx}px`;
+          el.style.height   = `${cellPx}px`;
           el.style.fontSize = `${numFz}px`;
           el.setAttribute('aria-label', `Garden patch ${r * size + c + 1}`);
 
-          // Touch: tap = reveal, long-press (500ms) = flag
           el.addEventListener('touchstart', (e) => {
             e.preventDefault();
             pressBlocked = false;
             pressTimer = setTimeout(() => {
               pressBlocked = true;
               el.style.fontSize = `${emojiFz}px`;
-              toggleFlag(r, c);
+              secondaryAction(r, c);
             }, 500);
           }, {passive: false});
 
@@ -515,7 +600,7 @@
             clearTimeout(pressTimer);
             if (!pressBlocked) {
               el.style.fontSize = `${emojiFz}px`;
-              handleTap(r, c);
+              primaryAction(r, c);
             }
           }, {passive: false});
 
@@ -545,6 +630,9 @@
       statusEl.className      = 'status';
       playAgainBtn.classList.remove('visible');
 
+      // Reset to dig mode on new game
+      setFlagMode(false);
+      renderBestTime();
       initGrid();
       buildGrid();
     }
