@@ -120,6 +120,16 @@ Always update `README.md` to reflect any changes made:
 
 ---
 
+## After every push
+
+Always open a pull request immediately after pushing:
+- Target branch: **`main`**
+- Title: short summary of what changed (under 70 characters)
+- Body: bullet-point summary of changes + a test plan checklist
+- Do this every time, without waiting to be asked
+
+---
+
 ## Commit message conventions
 
 ```

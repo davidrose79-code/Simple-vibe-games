@@ -31,7 +31,7 @@ python -m http.server 8080
 | Memory Cards | Live | `games/memory-cards/` |
 | Word Search | Live | `games/word-search/` |
 | Minesweeper | Coming soon | `games/minesweeper/` |
-| Hangman | Planned | — |
+| Hangman | Live | `games/hangman/` |
 | Snake | Planned | — |
 
 ---

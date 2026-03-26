@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Hangman — save the flower! Simple Vibe Games." />
+  <title>Hangman — Simple Vibe Games</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: 32px 24px 64px;
+    }
+
+    .top-nav { width: 100%; max-width: 540px; }
+
+    header {
+      text-align: center;
+      margin-top: 24px;
+    }
+
+    header h1 { font-size: clamp(1.75rem, 6vw, 2.75rem); }
+
+    header p {
+      margin-top: 4px;
+      font-size: 0.9375rem;
+      color: var(--color-subtle);
+    }
+
+    /* ── Difficulty buttons ── */
+    .difficulty {
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .diff-btn {
+      padding: 8px 20px;
+      border: 2px solid var(--color-surface);
+      border-radius: 980px;
+      background: var(--color-surface);
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-subtle);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+    }
+
+    .diff-btn.active {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: #fff;
+    }
+
+    .diff-btn:active { transform: scale(0.96); }
+
+    @media (hover: hover) {
+      .diff-btn:not(.active):hover {
+        border-color: var(--color-accent);
+        color: var(--color-accent);
+      }
+    }
+
+    /* ── Game area ── */
+    .game-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    /* ── Flower SVG ── */
+    .flower-wrap {
+      margin-top: 20px;
+      width: 150px;
+      height: 165px;
+      flex-shrink: 0;
+    }
+
+    #flower-svg { width: 100%; height: 100%; }
+
+    /* Petal fade-out */
+    .petal {
+      transition: opacity 500ms ease;
+    }
+
+    .petal.gone { opacity: 0; }
+
+    /* Flower wilt on game over */
+    #flower-group {
+      transition: transform 700ms cubic-bezier(.4,0,.2,1);
+      transform-origin: 100px 215px;
+      transform-box: fill-box;
+    }
+
+    #flower-group.wilt { transform: rotate(28deg); }
+
+    /* ── Hint ── */
+    .hint {
+      margin-top: 10px;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--color-subtle);
+      min-height: 1.4em;
+      text-align: center;
+    }
+
+    /* ── Word display ── */
+    .word-display {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 18px;
+      max-width: 340px;
+    }
+
+    .letter-slot {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      min-width: 32px;
+      height: 44px;
+      font-size: 1.375rem;
+      font-weight: 700;
+      line-height: 1;
+      padding-bottom: 4px;
+      border-bottom: 3px solid var(--color-text);
+      transition: color 250ms ease, border-color 250ms ease;
+    }
+
+    /* Blank — dash hidden, slot visible */
+    .letter-slot.blank { color: transparent; }
+
+    /* Given for free on easy */
+    .letter-slot.given {
+      color: var(--color-subtle);
+      border-color: var(--color-subtle);
+    }
+
+    /* Player-guessed correct */
+    .letter-slot.revealed {
+      color: var(--color-accent);
+      border-color: var(--color-accent);
+    }
+
+    /* Unguessed letters shown at game-over loss */
+    .letter-slot.missed {
+      color: #dc2626;
+      border-color: #dc2626;
+    }
+
+    /* ── Status ── */
+    .status {
+      margin-top: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-subtle);
+      min-height: 1.5em;
+      text-align: center;
+      transition: color 200ms ease;
+    }
+
+    .status.win  { color: var(--color-accent); }
+    .status.lose { color: #dc2626; }
+
+    /* ── Wrong letters ── */
+    .wrong-letters {
+      margin-top: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #dc2626;
+      min-height: 1.3em;
+      letter-spacing: 0.08em;
+      text-align: center;
+    }
+
+    /* ── Letter keyboard ── */
+    .keyboard {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-top: 22px;
+    }
+
+    .key-row {
+      display: flex;
+      gap: 5px;
+    }
+
+    .key {
+      width: clamp(28px, 7.5vw, 40px);
+      height: clamp(36px, 9vw, 46px);
+      border: none;
+      border-radius: 8px;
+      background: var(--color-surface);
+      font-family: inherit;
+      font-size: clamp(0.7rem, 2.5vw, 0.9375rem);
+      font-weight: 700;
+      color: var(--color-text);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      transition: background-color 200ms ease, color 200ms ease, transform 100ms ease;
+      box-shadow: 0 2px 4px var(--color-shadow);
+    }
+
+    .key:active:not([disabled]) { transform: scale(0.9); }
+
+    .key.correct {
+      background: var(--color-accent);
+      color: #fff;
+      box-shadow: none;
+    }
+
+    .key.wrong {
+      background: #fee2e2;
+      color: #dc2626;
+      box-shadow: none;
+    }
+
+    .key[disabled] { cursor: default; }
+
+    @media (hover: hover) {
+      .key:not([disabled]):not(.correct):not(.wrong):hover {
+        background: #ebebed;
+      }
+    }
+
+    /* ── Play again ── */
+    .btn-play-again {
+      margin-top: 28px;
+      padding: 14px 36px;
+      background: var(--color-accent);
+      color: #fff;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 980px;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      transition: opacity 200ms ease, transform 150ms ease;
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .btn-play-again.visible {
+      opacity: 1;
+      pointer-events: auto;
+      visibility: visible;
+    }
+
+    .btn-play-again:active { transform: scale(0.97); }
+
+    @media (hover: hover) {
+      .btn-play-again:hover { opacity: 0.85; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="top-nav">
+    <a href="../../index.html" class="back-link" aria-label="Back to all games">All Games</a>
+  </nav>
+
+  <header>
+    <h1>Hangman</h1>
+    <p>Save the flower! 🌸</p>
+  </header>
+
+  <div class="difficulty" role="group" aria-label="Difficulty">
+    <button class="diff-btn active" data-level="easy"   aria-pressed="true">Easy</button>
+    <button class="diff-btn"        data-level="medium" aria-pressed="false">Medium</button>
+    <button class="diff-btn"        data-level="hard"   aria-pressed="false">Hard</button>
+  </div>
+
+  <div class="game-area">
+
+    <!-- Flower graphic -->
+    <div class="flower-wrap">
+      <svg id="flower-svg" viewBox="0 0 200 230" aria-hidden="true">
+        <g id="flower-group">
+          <!-- Stem -->
+          <line x1="100" y1="132" x2="100" y2="218"
+                stroke="#5ab552" stroke-width="5" stroke-linecap="round"/>
+          <!-- Leaves -->
+          <ellipse cx="82"  cy="182" rx="18" ry="9" fill="#5ab552"
+                   transform="rotate(-40 82 182)"/>
+          <ellipse cx="118" cy="165" rx="18" ry="9" fill="#5ab552"
+                   transform="rotate(40 118 165)"/>
+          <!-- 6 petals — removed one by one per wrong guess -->
+          <g transform="translate(100,105) rotate(0)">
+            <ellipse id="petal-0" class="petal" cx="0" cy="-50" rx="13" ry="27" fill="#ffb3c6"/>
+          </g>
+          <g transform="translate(100,105) rotate(60)">
+            <ellipse id="petal-1" class="petal" cx="0" cy="-50" rx="13" ry="27" fill="#ffc8a0"/>
+          </g>
+          <g transform="translate(100,105) rotate(120)">
+            <ellipse id="petal-2" class="petal" cx="0" cy="-50" rx="13" ry="27" fill="#ffe0a0"/>
+          </g>
+          <g transform="translate(100,105) rotate(180)">
+            <ellipse id="petal-3" class="petal" cx="0" cy="-50" rx="13" ry="27" fill="#b3ecb3"/>
+          </g>
+          <g transform="translate(100,105) rotate(240)">
+            <ellipse id="petal-4" class="petal" cx="0" cy="-50" rx="13" ry="27" fill="#a2c8ff"/>
+          </g>
+          <g transform="translate(100,105) rotate(300)">
+            <ellipse id="petal-5" class="petal" cx="0" cy="-50" rx="13" ry="27" fill="#d4b3ff"/>
+          </g>
+          <!-- Flower centre -->
+          <circle cx="100" cy="105" r="27" fill="#ffd700" stroke="#f0c000" stroke-width="2"/>
+          <!-- Face — updated via JS -->
+          <text id="flower-face" x="100" y="113"
+                text-anchor="middle" dominant-baseline="middle"
+                font-size="22" font-family="Apple Color Emoji,Segoe UI Emoji,sans-serif">😄</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Category hint -->
+    <p class="hint" id="hint" aria-live="polite"></p>
+
+    <!-- Word blanks -->
+    <div class="word-display" id="word-display" aria-label="Word to guess" aria-live="polite"></div>
+
+    <!-- Status message -->
+    <p class="status" id="status" aria-live="polite" aria-atomic="true"></p>
+
+    <!-- Wrong letter list -->
+    <p class="wrong-letters" id="wrong-letters" aria-live="polite" aria-label="Wrong guesses"></p>
+
+    <!-- A–Z keyboard -->
+    <div class="keyboard" id="keyboard" aria-label="Letter keyboard"></div>
+
+    <!-- Play again -->
+    <button class="btn-play-again" id="btn-play-again" aria-label="Play again">
+      Play Again
+    </button>
+
+  </div>
+
+  <script>
+    // ── Word lists ─────────────────────────────────────────────
+    // Easy: short 3-letter words, category hint shown, first letter given free
+    // Medium: 4–6 letter words, category hint shown
+    // Hard: 6–8 letter words, no hint
+    const WORDS = {
+      easy: [
+        {word:'CAT',    hint:'🐱 Animal'},
+        {word:'DOG',    hint:'🐶 Animal'},
+        {word:'PIG',    hint:'🐷 Animal'},
+        {word:'OWL',    hint:'🦉 Bird'},
+        {word:'BEE',    hint:'🐝 Insect'},
+        {word:'FOX',    hint:'🦊 Animal'},
+        {word:'ANT',    hint:'🐜 Insect'},
+        {word:'SUN',    hint:'☀️ Nature'},
+        {word:'HAT',    hint:'🎩 Clothing'},
+        {word:'CUP',    hint:'☕ Object'},
+        {word:'BUS',    hint:'🚌 Vehicle'},
+        {word:'COW',    hint:'🐮 Animal'},
+      ],
+      medium: [
+        {word:'FROG',   hint:'🐸 Animal'},
+        {word:'BEAR',   hint:'🐻 Animal'},
+        {word:'FISH',   hint:'🐟 Animal'},
+        {word:'DUCK',   hint:'🦆 Bird'},
+        {word:'WOLF',   hint:'🐺 Animal'},
+        {word:'LION',   hint:'🦁 Animal'},
+        {word:'STAR',   hint:'⭐ Space'},
+        {word:'MOON',   hint:'🌙 Space'},
+        {word:'CAKE',   hint:'🎂 Food'},
+        {word:'APPLE',  hint:'🍎 Fruit'},
+        {word:'CLOUD',  hint:'☁️ Weather'},
+        {word:'HORSE',  hint:'🐴 Animal'},
+        {word:'TIGER',  hint:'🐯 Animal'},
+        {word:'SNAKE',  hint:'🐍 Animal'},
+      ],
+      hard: [
+        {word:'DRAGON',  hint:null},
+        {word:'OCTOPUS', hint:null},
+        {word:'PENGUIN', hint:null},
+        {word:'DOLPHIN', hint:null},
+        {word:'RAINBOW', hint:null},
+        {word:'VOLCANO', hint:null},
+        {word:'UNICORN', hint:null},
+        {word:'CHICKEN', hint:null},
+        {word:'ROCKET',  hint:null},
+        {word:'MERMAID', hint:null},
+        {word:'GIRAFFE', hint:null},
+        {word:'MONSTER', hint:null},
+      ],
+    };
+
+    const MAX_WRONG  = 6;
+    const FACES      = ['😄','🙂','😐','😕','😟','😢','😭'];
+    const KEY_ROWS   = ['ABCDEFGHI','JKLMNOPQR','STUVWXYZ'];
+
+    // ── State ──────────────────────────────────────────────────
+    let currentLevel     = 'easy';
+    let currentWord      = '';
+    let givenLetter      = null;  // first letter gifted on easy
+    let guessedLetters   = new Set();
+    let wrongCount       = 0;
+    let gameOver         = false;
+
+    // ── DOM refs ───────────────────────────────────────────────
+    const wordDisplayEl  = document.getElementById('word-display');
+    const statusEl       = document.getElementById('status');
+    const hintEl         = document.getElementById('hint');
+    const wrongLettersEl = document.getElementById('wrong-letters');
+    const keyboardEl     = document.getElementById('keyboard');
+    const playAgainBtn   = document.getElementById('btn-play-again');
+    const flowerFaceEl   = document.getElementById('flower-face');
+    const flowerGroupEl  = document.getElementById('flower-group');
+    const diffBtns       = document.querySelectorAll('.diff-btn');
+
+    // ── Flower ─────────────────────────────────────────────────
+    function updateFlower() {
+      for (let i = 0; i < MAX_WRONG; i++) {
+        // Petals disappear from index 5 down to 0 as wrong count increases
+        document.getElementById(`petal-${i}`)
+          .classList.toggle('gone', i >= MAX_WRONG - wrongCount);
+      }
+      flowerFaceEl.textContent = FACES[Math.min(wrongCount, FACES.length - 1)];
+    }
+
+    function resetFlower() {
+      for (let i = 0; i < MAX_WRONG; i++) {
+        document.getElementById(`petal-${i}`).classList.remove('gone');
+      }
+      flowerFaceEl.textContent = FACES[0];
+      flowerGroupEl.classList.remove('wilt');
+    }
+
+    // ── Word display ───────────────────────────────────────────
+    function renderWordDisplay() {
+      wordDisplayEl.innerHTML = '';
+      [...currentWord].forEach(letter => {
+        const span = document.createElement('span');
+        span.className = 'letter-slot';
+        span.textContent = letter;
+
+        if (guessedLetters.has(letter)) {
+          span.classList.add('revealed');
+        } else if (letter === givenLetter && !gameOver) {
+          span.classList.add('given');
+        } else if (gameOver) {
+          span.classList.add('missed');
+        } else {
+          span.classList.add('blank');
+        }
+
+        wordDisplayEl.appendChild(span);
+      });
+    }
+
+    // ── Keyboard ───────────────────────────────────────────────
+    function buildKeyboard() {
+      keyboardEl.innerHTML = '';
+      KEY_ROWS.forEach(row => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'key-row';
+        [...row].forEach(letter => {
+          const btn = document.createElement('button');
+          btn.className = 'key';
+          btn.textContent = letter;
+          btn.dataset.letter = letter;
+          btn.setAttribute('aria-label', `Guess letter ${letter}`);
+          btn.addEventListener('click', () => handleGuess(letter));
+          rowEl.appendChild(btn);
+        });
+        keyboardEl.appendChild(rowEl);
+      });
+
+      // Disable the gifted key on easy
+      if (givenLetter) {
+        const btn = keyboardEl.querySelector(`[data-letter="${givenLetter}"]`);
+        if (btn) { btn.classList.add('correct'); btn.disabled = true; }
+      }
+    }
+
+    function updateKeyboard() {
+      keyboardEl.querySelectorAll('.key').forEach(btn => {
+        const l = btn.dataset.letter;
+        if (guessedLetters.has(l)) {
+          btn.classList.add(currentWord.includes(l) ? 'correct' : 'wrong');
+          btn.disabled = true;
+        }
+      });
+    }
+
+    // ── Guess ──────────────────────────────────────────────────
+    function handleGuess(letter) {
+      if (gameOver || guessedLetters.has(letter) || letter === givenLetter) return;
+
+      guessedLetters.add(letter);
+
+      if (currentWord.includes(letter)) {
+        renderWordDisplay();
+        updateKeyboard();
+        const allDone = [...currentWord].every(
+          l => guessedLetters.has(l) || l === givenLetter
+        );
+        if (allDone) endGame('win');
+      } else {
+        wrongCount++;
+        updateFlower();
+        updateKeyboard();
+        updateWrongLetters();
+        if (wrongCount >= MAX_WRONG) endGame('lose');
+      }
+    }
+
+    function updateWrongLetters() {
+      const wrong = [...guessedLetters].filter(l => !currentWord.includes(l));
+      wrongLettersEl.textContent = wrong.length ? `Wrong: ${wrong.join('  ')}` : '';
+    }
+
+    // ── End game ───────────────────────────────────────────────
+    function endGame(result) {
+      gameOver = true;
+      keyboardEl.querySelectorAll('.key').forEach(b => { b.disabled = true; });
+
+      if (result === 'win') {
+        flowerFaceEl.textContent = '🥳';
+        statusEl.textContent = 'You saved the flower! 🌸';
+        statusEl.className = 'status win';
+        // Light up all slots as revealed
+        wordDisplayEl.querySelectorAll('.letter-slot').forEach(s => {
+          s.className = 'letter-slot revealed';
+        });
+      } else {
+        flowerGroupEl.classList.add('wilt');
+        statusEl.textContent = `The flower wilted! It was ${currentWord}.`;
+        statusEl.className = 'status lose';
+        renderWordDisplay(); // shows missed letters in red
+      }
+
+      playAgainBtn.classList.add('visible');
+    }
+
+    // ── New game ───────────────────────────────────────────────
+    function newGame() {
+      const list   = WORDS[currentLevel];
+      const choice = list[Math.floor(Math.random() * list.length)];
+      currentWord  = choice.word;
+
+      guessedLetters = new Set();
+      wrongCount     = 0;
+      gameOver       = false;
+
+      // Easy: gift the first letter (shown in grey, not counted as guess)
+      givenLetter = currentLevel === 'easy' ? currentWord[0] : null;
+
+      resetFlower();
+
+      hintEl.textContent      = choice.hint ? `Hint: ${choice.hint}` : '';
+      statusEl.textContent    = '';
+      statusEl.className      = 'status';
+      wrongLettersEl.textContent = '';
+      playAgainBtn.classList.remove('visible');
+
+      renderWordDisplay();
+      buildKeyboard();
+    }
+
+    // ── Difficulty ─────────────────────────────────────────────
+    diffBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.level === currentLevel) return;
+        diffBtns.forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+        currentLevel = btn.dataset.level;
+        newGame();
+      });
+    });
+
+    playAgainBtn.addEventListener('click', newGame);
+
+    // ── Init ───────────────────────────────────────────────────
+    newGame();
+  </script>
+
+</body>
+</html>
