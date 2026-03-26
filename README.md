@@ -9,7 +9,9 @@ Designed for everyone aged 5 and above.
 
 ## Play it
 
-Open `index.html` in any modern browser. No server required.
+**Live site:** [davidrose79-code.github.io/Simple-vibe-games](https://davidrose79-code.github.io/Simple-vibe-games/)
+
+Or run it locally — open `index.html` in any modern browser. No server required.
 
 If you have Python installed you can also run a quick local server:
 
@@ -25,7 +27,7 @@ python -m http.server 8080
 
 | Game | Status | Folder |
 |------|--------|--------|
-| Noughts and Crosses | Coming soon | `games/noughts-and-crosses/` |
+| Noughts and Crosses | Live | `games/noughts-and-crosses/` |
 | Minesweeper | Coming soon | `games/minesweeper/` |
 | Word Search | Coming soon | `games/word-search/` |
 | Memory Cards | Planned | — |
