@@ -160,7 +160,7 @@
     .grid-wrap {
       margin-top: 16px;
       padding: 10px;
-      background: #6aaa4a;
+      background: #3d6b1a;
       border-radius: 14px;
       box-shadow: 0 4px 14px rgba(0,0,0,0.12);
     }
@@ -185,23 +185,23 @@
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
       transition: background-color 120ms ease, transform 80ms ease;
-      background: #a07840;
-      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.12);
+      background: #5db339;
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.22), inset 0 2px 0 rgba(255,255,255,0.28);
     }
 
     .cell:active { transform: scale(0.92); }
 
     /* In flag mode highlight unrevealed cells */
     body.flag-mode .cell:not(.revealed):not(.flagged) {
-      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.12),
-                  0 0 0 1px rgba(251,140,0,0.5);
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.22), inset 0 2px 0 rgba(255,255,255,0.28),
+                  0 0 0 2px rgba(251,140,0,0.7);
     }
 
-    .cell.flagged  { background: #8b6530; }
+    .cell.flagged  { background: #4a9030; }
 
     .cell.revealed {
-      background: #d4edda;
-      box-shadow: none;
+      background: #c4875a;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.18);
       cursor: default;
     }
 
@@ -250,7 +250,7 @@
 
   <header>
     <h1>Worm Hunt</h1>
-    <p>Tap safely — don't dig up the worms!</p>
+    <p>Tap safely — don't dig up the caterpillars!</p>
   </header>
 
   <div class="difficulty" role="group" aria-label="Difficulty">
@@ -267,7 +267,7 @@
 
   <div class="stats" aria-label="Game stats">
     <div class="stat-block">
-      <span class="stat-label">🪱 Worms</span>
+      <span class="stat-label">🐛 Bugs</span>
       <span class="stat-value" id="worm-count">8</span>
     </div>
     <div class="stat-block">
@@ -426,7 +426,7 @@
       if (cell.revealed) {
         el.classList.add('revealed');
         if (cell.worm) {
-          el.textContent = '🪱';
+          el.textContent = '🐛';
         } else if (cell.count > 0) {
           el.textContent = cell.count;
           el.style.color = NUM_COLORS[cell.count];
@@ -541,7 +541,7 @@
             }
           }
         if (hitR !== undefined) getCellEl(hitR, hitC).classList.add('exploded');
-        statusEl.textContent = 'Oh no — you found a worm! 🪱';
+        statusEl.textContent = 'Oh no — you found a caterpillar! 🐛';
         statusEl.className   = 'status lose';
       } else {
         // Auto-flag remaining worms
@@ -608,6 +608,18 @@
             clearTimeout(pressTimer);
             pressBlocked = true;
           }, {passive: true});
+
+          // Mouse/desktop support (touch devices suppress click via e.preventDefault above)
+          el.addEventListener('click', () => {
+            el.style.fontSize = `${emojiFz}px`;
+            primaryAction(r, c);
+          });
+
+          el.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            el.style.fontSize = `${emojiFz}px`;
+            secondaryAction(r, c);
+          });
 
           gridEl.appendChild(el);
         }
