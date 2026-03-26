@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Simple Vibe Games — a collection of fun browser games for everyone." />
+  <title>Play — Simple Vibe Games</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Homepage-specific layout */
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 24px 80px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    header p {
+      font-size: 1.0625rem;
+      margin-top: 8px;
+    }
+
+    main {
+      width: 100%;
+      max-width: 960px;
+      margin-top: 52px;
+    }
+
+    footer {
+      margin-top: 80px;
+      font-size: 0.8125rem;
+      color: var(--color-subtle);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Play</h1>
+    <p>Pick a game and have fun.</p>
+  </header>
+
+  <main>
+    <nav aria-label="Games">
+      <div class="grid">
+
+        <a href="games/noughts-and-crosses/index.html"
+           class="game-card"
+           aria-label="Play Noughts and Crosses">
+          <div class="circle" role="img" aria-hidden="true">⭕</div>
+          <span class="label">Noughts &amp; Crosses</span>
+        </a>
+
+        <a href="games/minesweeper/index.html"
+           class="game-card"
+           aria-label="Play Minesweeper">
+          <div class="circle" role="img" aria-hidden="true">💣</div>
+          <span class="label">Minesweeper</span>
+        </a>
+
+        <a href="games/word-search/index.html"
+           class="game-card"
+           aria-label="Play Word Search">
+          <div class="circle" role="img" aria-hidden="true">🔤</div>
+          <span class="label">Word Search</span>
+        </a>
+
+        <!-- Planned games — uncomment and link when ready -->
+        <!--
+        <a href="games/memory-cards/index.html"
+           class="game-card"
+           aria-label="Play Memory Cards">
+          <div class="circle" role="img" aria-hidden="true">🃏</div>
+          <span class="label">Memory Cards</span>
+        </a>
+
+        <a href="games/hangman/index.html"
+           class="game-card"
+           aria-label="Play Hangman">
+          <div class="circle" role="img" aria-hidden="true">🪢</div>
+          <span class="label">Hangman</span>
+        </a>
+
+        <a href="games/snake/index.html"
+           class="game-card"
+           aria-label="Play Snake">
+          <div class="circle" role="img" aria-hidden="true">🐍</div>
+          <span class="label">Snake</span>
+        </a>
+        -->
+
+      </div>
+    </nav>
+  </main>
+
+  <footer>
+    <p>Simple Vibe Games &mdash; open in any browser, no account needed.</p>
+  </footer>
+
+</body>
+</html>
