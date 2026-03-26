@@ -24,6 +24,48 @@
 
     header h1 { font-size: clamp(1.75rem, 6vw, 2.75rem); }
 
+    /* ── Difficulty selector ── */
+    .difficulty {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .diff-btn {
+      padding: 8px 20px;
+      border: 2px solid var(--color-surface);
+      border-radius: 980px;
+      background: var(--color-surface);
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-subtle);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      transition: background-color 200ms ease,
+                  border-color 200ms ease,
+                  color 200ms ease;
+    }
+
+    .diff-btn.active {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: #fff;
+    }
+
+    .diff-btn:active { transform: scale(0.96); }
+
+    @media (hover: hover) {
+      .diff-btn:not(.active):hover {
+        border-color: var(--color-accent);
+        color: var(--color-accent);
+      }
+    }
+
     /* ── Stats ── */
     .stats {
       display: flex;
@@ -72,9 +114,8 @@
 
     .card-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
       gap: 10px;
-      width: min(340px, 92vw);
+      /* columns and width set dynamically by JS */
     }
 
     /* ── 3-D card flip ── */
@@ -125,8 +166,8 @@
     .card-face {
       background: var(--color-surface);
       box-shadow: 0 2px 6px var(--color-shadow);
-      font-size: clamp(1.4rem, 5.5vw, 1.9rem);
       transform: rotateY(180deg);
+      /* font-size set dynamically */
     }
 
     .card.matched .card-face {
@@ -134,7 +175,6 @@
       box-shadow: 0 0 0 2px var(--color-accent);
     }
 
-    /* Press feedback */
     .card:active:not(.matched) .card-cover {
       transform: scale(0.95);
     }
@@ -190,6 +230,13 @@
     <h1>Memory Cards</h1>
   </header>
 
+  <!-- Difficulty selector -->
+  <div class="difficulty" role="group" aria-label="Number of pairs">
+    <button class="diff-btn active" data-level="8"  aria-pressed="true">8 Pairs</button>
+    <button class="diff-btn"        data-level="12" aria-pressed="false">12 Pairs</button>
+    <button class="diff-btn"        data-level="18" aria-pressed="false">18 Pairs</button>
+  </div>
+
   <div class="stats" aria-label="Game stats">
     <div class="stat-block">
       <span class="stat-label">Moves</span>
@@ -214,19 +261,33 @@
   </button>
 
   <script>
-    const EMOJIS = ['🐶','🐱','🌟','🎈','🍕','🦋','🌈','🐸'];
+    // 18 emojis — easy uses first 8, medium first 12, hard all 18
+    const ALL_EMOJIS = [
+      '🐶','🐱','🌟','🎈','🍕','🦋','🌈','🐸',
+      '🦄','🐼','🍦','🎨',
+      '🚀','🎸','🌸','🦁','🐯','🦊'
+    ];
 
-    let cards    = [];   // shuffled array of emojis (16 items)
-    let flipped  = [];   // indices of currently face-up (unmatched) cards
-    let matched  = new Set();
-    let moves    = 0;
-    let locked   = false; // true while checking a non-matching pair
+    // cols, gridWidth, emoji font-size for each pair count
+    const CONFIGS = {
+      8:  { cols: 4, width: 'min(340px, 92vw)', fontSize: 'clamp(1.4rem, 5.5vw, 1.9rem)' },
+      12: { cols: 4, width: 'min(340px, 92vw)', fontSize: 'clamp(1.2rem, 5vw, 1.7rem)' },
+      18: { cols: 6, width: 'min(420px, 96vw)', fontSize: 'clamp(1rem, 4vw, 1.4rem)' },
+    };
 
-    const gridEl      = document.getElementById('card-grid');
-    const movesEl     = document.getElementById('moves');
-    const pairsEl     = document.getElementById('pairs');
-    const statusEl    = document.getElementById('status');
+    let targetPairs = 8;
+    let cards   = [];
+    let flipped = [];
+    let matched = new Set();
+    let moves   = 0;
+    let locked  = false;
+
+    const gridEl       = document.getElementById('card-grid');
+    const movesEl      = document.getElementById('moves');
+    const pairsEl      = document.getElementById('pairs');
+    const statusEl     = document.getElementById('status');
     const playAgainBtn = document.getElementById('btn-play-again');
+    const diffBtns     = document.querySelectorAll('.diff-btn');
 
     // ── Helpers ────────────────────────────────────────────
     function shuffle(arr) {
@@ -244,7 +305,13 @@
 
     // ── Build grid ─────────────────────────────────────────
     function buildGrid() {
-      cards = shuffle([...EMOJIS, ...EMOJIS]);
+      const cfg    = CONFIGS[targetPairs];
+      const emojis = ALL_EMOJIS.slice(0, targetPairs);
+      cards = shuffle([...emojis, ...emojis]);
+
+      // Apply grid layout
+      gridEl.style.gridTemplateColumns = `repeat(${cfg.cols}, 1fr)`;
+      gridEl.style.width = cfg.width;
       gridEl.innerHTML = '';
 
       cards.forEach((emoji, i) => {
@@ -256,12 +323,14 @@
         card.innerHTML = `
           <div class="card-inner">
             <div class="card-cover" aria-hidden="true">?</div>
-            <div class="card-face"  aria-hidden="true">${emoji}</div>
+            <div class="card-face"  aria-hidden="true" style="font-size:${cfg.fontSize}">${emoji}</div>
           </div>`;
 
         card.addEventListener('click', () => flip(i));
         gridEl.appendChild(card);
       });
+
+      pairsEl.textContent = `0 / ${targetPairs}`;
     }
 
     // ── Flip logic ─────────────────────────────────────────
@@ -275,7 +344,6 @@
 
       if (flipped.length < 2) return;
 
-      // Two cards face up — check for match
       moves++;
       movesEl.textContent = moves;
       locked = true;
@@ -283,7 +351,6 @@
       const [a, b] = flipped;
 
       if (cards[a] === cards[b]) {
-        // Match
         matched.add(a);
         matched.add(b);
         cardEl(a).classList.add('matched');
@@ -292,10 +359,9 @@
         cardEl(b).setAttribute('aria-label', `Matched pair: ${cards[b]}`);
         flipped = [];
         locked  = false;
-        pairsEl.textContent = `${matched.size / 2} / 8`;
-        if (matched.size === 16) endGame();
+        pairsEl.textContent = `${matched.size / 2} / ${targetPairs}`;
+        if (matched.size === targetPairs * 2) endGame();
       } else {
-        // No match — flip back after a short pause
         setTimeout(() => {
           cardEl(a).classList.remove('flipped');
           cardEl(b).classList.remove('flipped');
@@ -320,12 +386,23 @@
       moves    = 0;
       locked   = false;
       movesEl.textContent  = 0;
-      pairsEl.textContent  = '0 / 8';
       statusEl.textContent = 'Find all the matching pairs!';
       statusEl.className   = 'status';
       playAgainBtn.classList.remove('visible');
       buildGrid();
     }
+
+    // ── Difficulty buttons ─────────────────────────────────
+    diffBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (parseInt(btn.dataset.level) === targetPairs) return;
+        diffBtns.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+        targetPairs = parseInt(btn.dataset.level);
+        resetGame();
+      });
+    });
 
     playAgainBtn.addEventListener('click', resetGame);
     buildGrid();

@@ -24,6 +24,48 @@
 
     header h1 { font-size: clamp(1.75rem, 6vw, 2.75rem); }
 
+    /* ── Difficulty selector ── */
+    .difficulty {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .diff-btn {
+      padding: 8px 20px;
+      border: 2px solid var(--color-surface);
+      border-radius: 980px;
+      background: var(--color-surface);
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-subtle);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      transition: background-color 200ms ease,
+                  border-color 200ms ease,
+                  color 200ms ease;
+    }
+
+    .diff-btn.active {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: #fff;
+    }
+
+    .diff-btn:active { transform: scale(0.96); }
+
+    @media (hover: hover) {
+      .diff-btn:not(.active):hover {
+        border-color: var(--color-accent);
+        color: var(--color-accent);
+      }
+    }
+
     /* ── Status ── */
     .status {
       margin-top: 14px;
@@ -40,7 +82,6 @@
     /* ── Letter grid ── */
     .grid-wrap {
       margin-top: 24px;
-      /* Prevent default touch scroll/zoom on the grid */
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
@@ -48,9 +89,8 @@
 
     .letter-grid {
       display: grid;
-      grid-template-columns: repeat(8, 1fr);
       gap: 3px;
-      width: min(352px, 96vw);
+      /* grid-template-columns and width set by JS */
     }
 
     .cell {
@@ -58,22 +98,19 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: clamp(0.9rem, 3.5vw, 1.1rem);
       font-weight: 600;
       border-radius: 6px;
       background: var(--color-surface);
       color: var(--color-text);
       transition: background-color 150ms ease, color 150ms ease;
-      letter-spacing: 0;
+      /* font-size set dynamically */
     }
 
-    /* Finger-drag highlight */
     .cell.selecting {
       background: #cce0f8;
       color: var(--color-accent);
     }
 
-    /* Permanently found */
     .cell.found {
       background: var(--color-accent);
       color: #fff;
@@ -86,7 +123,7 @@
       gap: 10px 16px;
       justify-content: center;
       margin-top: 24px;
-      max-width: min(352px, 96vw);
+      /* max-width set dynamically to match grid */
     }
 
     .word-item {
@@ -95,7 +132,6 @@
       color: var(--color-text);
       letter-spacing: 0.05em;
       transition: color 200ms ease;
-      position: relative;
     }
 
     .word-item.found {
@@ -148,6 +184,13 @@
     <h1>Word Search</h1>
   </header>
 
+  <!-- Difficulty selector -->
+  <div class="difficulty" role="group" aria-label="Word length">
+    <button class="diff-btn active" data-level="short" aria-pressed="true">Short</button>
+    <button class="diff-btn"        data-level="long"  aria-pressed="false">Long</button>
+    <button class="diff-btn"        data-level="mixed" aria-pressed="false">Mixed</button>
+  </div>
+
   <p class="status" id="status" aria-live="polite" aria-atomic="true">
     Swipe to find all the words!
   </p>
@@ -163,12 +206,26 @@
   </button>
 
   <script>
-    // ── Puzzle config ───────────────────────────────────────
-    const SIZE  = 8;
-    const WORDS = ['CAT', 'DOG', 'SUN', 'HAT', 'BEE', 'FLY', 'RED', 'MAP'];
-    const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    // ── Word sets ───────────────────────────────────────────
+    const WORD_SETS = {
+      // 8 short words, 3 letters each → 8×8 grid
+      short: {
+        words: ['CAT', 'DOG', 'SUN', 'HAT', 'BEE', 'FLY', 'RED', 'MAP'],
+        gridSize: 8,
+      },
+      // 8 long words, 5–6 letters → 10×10 grid
+      long: {
+        words: ['TIGER', 'APPLE', 'CLOUD', 'STONE', 'BREAD', 'LEMON', 'RIVER', 'MUSIC'],
+        gridSize: 10,
+      },
+      // 10 words, mixed 3–5 letters → 12×12 grid
+      mixed: {
+        words: ['CAT', 'FROG', 'TIGER', 'SUN', 'APPLE', 'STAR', 'HAT', 'BEAR', 'STONE', 'CAKE'],
+        gridSize: 12,
+      },
+    };
 
-    // Direction vectors: [rowDelta, colDelta]
+    const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const DIRECTIONS = [
       [0,  1],  // right
       [0, -1],  // left
@@ -177,61 +234,62 @@
     ];
 
     // ── State ───────────────────────────────────────────────
-    let grid        = [];   // 2D array of letters
-    let placements  = [];   // [{word, cells:[{r,c}]}]
-    let foundWords  = new Set();
-    let dragStart   = null; // {r, c}
-    let dragCells   = [];   // currently highlighted cells
+    let currentLevel = 'short';
+    let grid         = [];
+    let placements   = [];
+    let foundWords   = new Set();
+    let dragStart    = null;
+    let dragCells    = [];
 
     // ── DOM refs ────────────────────────────────────────────
-    const gridEl      = document.getElementById('letter-grid');
-    const wordListEl  = document.getElementById('word-list');
-    const statusEl    = document.getElementById('status');
+    const gridEl       = document.getElementById('letter-grid');
+    const wordListEl   = document.getElementById('word-list');
+    const statusEl     = document.getElementById('status');
     const playAgainBtn = document.getElementById('btn-play-again');
-    const gridWrapEl  = document.getElementById('grid-wrap');
+    const gridWrapEl   = document.getElementById('grid-wrap');
+    const diffBtns     = document.querySelectorAll('.diff-btn');
 
     // ── Puzzle generation ───────────────────────────────────
     function generatePuzzle() {
-      grid       = Array.from({length: SIZE}, () => Array(SIZE).fill(''));
+      const { words, gridSize } = WORD_SETS[currentLevel];
+      grid       = Array.from({length: gridSize}, () => Array(gridSize).fill(''));
       placements = [];
 
-      for (const word of WORDS) {
-        let placed = false;
+      for (const word of words) {
+        let placed   = false;
         let attempts = 0;
 
-        while (!placed && attempts < 300) {
+        while (!placed && attempts < 400) {
           attempts++;
           const [dr, dc] = DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
 
-          // Determine valid starting positions so the word fits in bounds
           const rMin = dr === -1 ? word.length - 1 : 0;
-          const rMax = dr ===  1 ? SIZE - word.length : SIZE - 1;
+          const rMax = dr ===  1 ? gridSize - word.length : gridSize - 1;
           const cMin = dc === -1 ? word.length - 1 : 0;
-          const cMax = dc ===  1 ? SIZE - word.length : SIZE - 1;
+          const cMax = dc ===  1 ? gridSize - word.length : gridSize - 1;
 
           if (rMin > rMax || cMin > cMax) continue;
 
           const r0 = rMin + Math.floor(Math.random() * (rMax - rMin + 1));
           const c0 = cMin + Math.floor(Math.random() * (cMax - cMin + 1));
 
-          // Build cell list
-          const cells = [];
-          for (let i = 0; i < word.length; i++) {
-            cells.push({r: r0 + dr * i, c: c0 + dc * i, letter: word[i]});
-          }
+          const cells = word.split('').map((letter, i) => ({
+            r: r0 + dr * i,
+            c: c0 + dc * i,
+            letter,
+          }));
 
-          // Check if every cell is empty or already has the correct letter
           if (cells.every(({r, c, letter}) => grid[r][c] === '' || grid[r][c] === letter)) {
             cells.forEach(({r, c, letter}) => { grid[r][c] = letter; });
-            placements.push({word, cells: cells.map(({r, c}) => ({r, c}))});
+            placements.push({ word, cells: cells.map(({r, c}) => ({r, c})) });
             placed = true;
           }
         }
       }
 
-      // Fill remaining empty cells with random letters
-      for (let r = 0; r < SIZE; r++) {
-        for (let c = 0; c < SIZE; c++) {
+      // Fill remaining cells
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
           if (grid[r][c] === '') {
             grid[r][c] = ALPHA[Math.floor(Math.random() * ALPHA.length)];
           }
@@ -240,10 +298,30 @@
     }
 
     // ── Render ──────────────────────────────────────────────
+    function applyGridLayout() {
+      const { gridSize } = WORD_SETS[currentLevel];
+      // Grid fills up to 96vw, capped so cells stay large enough
+      const maxPx    = Math.min(window.innerWidth * 0.96, 400);
+      const cellPx   = Math.floor(maxPx / gridSize);
+      const gridPx   = cellPx * gridSize;
+      const fontSize = Math.max(10, Math.min(18, Math.floor(cellPx * 0.45)));
+
+      gridEl.style.gridTemplateColumns = `repeat(${gridSize}, ${cellPx}px)`;
+      gridEl.style.width = `${gridPx}px`;
+      wordListEl.style.maxWidth = `${gridPx}px`;
+
+      // Apply font size to all cells
+      gridEl.querySelectorAll('.cell').forEach(c => {
+        c.style.fontSize = `${fontSize}px`;
+      });
+    }
+
     function renderGrid() {
+      const { gridSize } = WORD_SETS[currentLevel];
       gridEl.innerHTML = '';
-      for (let r = 0; r < SIZE; r++) {
-        for (let c = 0; c < SIZE; c++) {
+
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
           cell.textContent = grid[r][c];
@@ -253,11 +331,14 @@
           gridEl.appendChild(cell);
         }
       }
+
+      applyGridLayout();
     }
 
     function renderWordList() {
+      const { words } = WORD_SETS[currentLevel];
       wordListEl.innerHTML = '';
-      WORDS.forEach(word => {
+      words.forEach(word => {
         const span = document.createElement('span');
         span.className = 'word-item';
         span.id = `word-${word}`;
@@ -275,29 +356,26 @@
     function cellFromPoint(x, y) {
       const el = document.elementFromPoint(x, y);
       if (!el || !el.classList.contains('cell')) return null;
-      return {r: parseInt(el.dataset.r), c: parseInt(el.dataset.c)};
+      return { r: parseInt(el.dataset.r), c: parseInt(el.dataset.c) };
     }
 
     function cellsBetween(r1, c1, r2, c2) {
-      // Only allow straight lines (horizontal or vertical)
       if (r1 === r2) {
         const step = c2 >= c1 ? 1 : -1;
-        const cells = [];
-        for (let c = c1; c !== c2 + step; c += step) cells.push({r: r1, c});
-        return cells;
+        const out  = [];
+        for (let c = c1; c !== c2 + step; c += step) out.push({r: r1, c});
+        return out;
       }
       if (c1 === c2) {
         const step = r2 >= r1 ? 1 : -1;
-        const cells = [];
-        for (let r = r1; r !== r2 + step; r += step) cells.push({r, c: c1});
-        return cells;
+        const out  = [];
+        for (let r = r1; r !== r2 + step; r += step) out.push({r, c: c1});
+        return out;
       }
-      // Diagonal — not supported; just return the start cell
       return [{r: r1, c: c1}];
     }
 
     function applySelecting(cells) {
-      // Clear previous selecting highlight (preserve found)
       dragCells.forEach(({r, c}) => {
         const el = getCellEl(r, c);
         if (el && !el.classList.contains('found')) el.classList.remove('selecting');
@@ -318,26 +396,21 @@
     }
 
     function checkSelection(cells) {
-      const word = cells.map(({r, c}) => grid[r][c]).join('');
+      const { words } = WORD_SETS[currentLevel];
+      const word    = cells.map(({r, c}) => grid[r][c]).join('');
       const wordRev = word.split('').reverse().join('');
-
-      const match = WORDS.find(w => (w === word || w === wordRev) && !foundWords.has(w));
+      const match   = words.find(w => (w === word || w === wordRev) && !foundWords.has(w));
       if (!match) return;
 
       foundWords.add(match);
-
-      // Mark cells as found
       cells.forEach(({r, c}) => {
         const el = getCellEl(r, c);
         if (el) { el.classList.remove('selecting'); el.classList.add('found'); }
       });
-
-      // Strike through the word in the list
       const wordEl = document.getElementById(`word-${match}`);
       if (wordEl) wordEl.classList.add('found');
 
-      // Update status
-      const remaining = WORDS.length - foundWords.size;
+      const remaining = words.length - foundWords.size;
       if (remaining === 0) {
         endGame();
       } else {
@@ -345,11 +418,11 @@
       }
     }
 
-    // ── Touch event handlers ────────────────────────────────
+    // ── Touch events ────────────────────────────────────────
     gridWrapEl.addEventListener('touchstart', (e) => {
       e.preventDefault();
       const touch = e.touches[0];
-      const cell = cellFromPoint(touch.clientX, touch.clientY);
+      const cell  = cellFromPoint(touch.clientX, touch.clientY);
       if (!cell) return;
       dragStart = cell;
       applySelecting([cell]);
@@ -359,10 +432,9 @@
       e.preventDefault();
       if (!dragStart) return;
       const touch = e.touches[0];
-      const cell = cellFromPoint(touch.clientX, touch.clientY);
+      const cell  = cellFromPoint(touch.clientX, touch.clientY);
       if (!cell) return;
-      const cells = cellsBetween(dragStart.r, dragStart.c, cell.r, cell.c);
-      applySelecting(cells);
+      applySelecting(cellsBetween(dragStart.r, dragStart.c, cell.r, cell.c));
     }, {passive: false});
 
     gridWrapEl.addEventListener('touchend', (e) => {
@@ -376,7 +448,7 @@
     // ── End / reset ─────────────────────────────────────────
     function endGame() {
       statusEl.textContent = 'You found them all! 🎉';
-      statusEl.className = 'status win';
+      statusEl.className   = 'status win';
       playAgainBtn.classList.add('visible');
     }
 
@@ -391,6 +463,21 @@
       renderGrid();
       renderWordList();
     }
+
+    // ── Difficulty buttons ──────────────────────────────────
+    diffBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.level === currentLevel) return;
+        diffBtns.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+        currentLevel = btn.dataset.level;
+        resetGame();
+      });
+    });
+
+    // Re-apply layout on window resize so the grid stays proportional
+    window.addEventListener('resize', applyGridLayout);
 
     playAgainBtn.addEventListener('click', resetGame);
 
