@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Noughts and Crosses — a simple two-player game for everyone." />
+  <title>Noughts &amp; Crosses — Simple Vibe Games</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    /* ── Page layout ── */
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: 32px 24px 64px;
+      gap: 0;
+    }
+
+    .top-nav {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    header {
+      text-align: center;
+      margin-top: 28px;
+    }
+
+    header h1 {
+      font-size: clamp(1.75rem, 6vw, 2.75rem);
+    }
+
+    /* ── Status banner ── */
+    .status {
+      margin-top: 18px;
+      font-size: 1.0625rem;
+      font-weight: 600;
+      color: var(--color-text);
+      min-height: 1.6em;
+      text-align: center;
+      transition: color 200ms ease;
+    }
+
+    .status.win {
+      color: var(--color-accent);
+    }
+
+    .status.draw {
+      color: var(--color-subtle);
+    }
+
+    /* ── Score bar ── */
+    .scores {
+      display: flex;
+      gap: 32px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .score-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .score-block .player-label {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--color-subtle);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .score-block .score-value {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--color-text);
+    }
+
+    .score-block.active .player-label {
+      color: var(--color-accent);
+    }
+
+    .score-block.active .score-value {
+      color: var(--color-accent);
+    }
+
+    .score-divider {
+      font-size: 1.5rem;
+      color: var(--color-subtle);
+      align-self: center;
+    }
+
+    /* ── Board ── */
+    .board-wrap {
+      margin-top: 32px;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: min(320px, 88vw);
+    }
+
+    .cell {
+      aspect-ratio: 1;
+      background: var(--color-surface);
+      border: none;
+      border-radius: 16px;
+      font-size: clamp(2rem, 10vw, 3rem);
+      font-weight: 700;
+      cursor: pointer;
+      color: var(--color-text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 200ms ease,
+                  transform 150ms ease,
+                  box-shadow 200ms ease;
+      box-shadow: 0 2px 6px var(--color-shadow);
+      /* Accessible tap target — board cells are large already */
+      min-width: 44px;
+      min-height: 44px;
+      position: relative;
+      overflow: hidden;
+      /* Touch-screen polish */
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+    }
+
+    /* Hover only on real pointer devices (not touch) */
+    @media (hover: hover) {
+      .cell:hover:not([disabled]) {
+        background-color: #ebebed;
+        transform: scale(1.04);
+        box-shadow: 0 4px 14px var(--color-shadow-hover);
+      }
+    }
+
+    .cell:active:not([disabled]) {
+      transform: scale(0.97);
+    }
+
+    /* Mark animations */
+    .cell .mark {
+      display: inline-block;
+      opacity: 0;
+      transform: scale(0.4) rotate(-15deg);
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .cell.filled .mark {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+
+    /* X colour */
+    .cell[data-mark="X"] {
+      color: #d64e4e;
+    }
+
+    /* O colour */
+    .cell[data-mark="O"] {
+      color: var(--color-accent);
+    }
+
+    /* Winning cells */
+    .cell.winner {
+      background-color: #e8f1fb;
+      box-shadow: 0 0 0 3px var(--color-accent);
+    }
+
+    /* ── Play again button ── */
+    .btn-play-again {
+      margin-top: 32px;
+      padding: 14px 36px;
+      background: var(--color-accent);
+      color: #fff;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 980px;      /* pill */
+      cursor: pointer;
+      transition: opacity 200ms ease, transform 150ms ease;
+      opacity: 0;
+      pointer-events: none;
+      /* don't shift layout when hidden */
+      visibility: hidden;
+    }
+
+    .btn-play-again.visible {
+      opacity: 1;
+      pointer-events: auto;
+      visibility: visible;
+    }
+
+    @media (hover: hover) {
+      .btn-play-again:hover {
+        opacity: 0.85;
+      }
+    }
+
+    .btn-play-again:active {
+      transform: scale(0.97);
+    }
+
+    .btn-play-again {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="top-nav">
+    <a href="../../index.html" class="back-link" aria-label="Back to all games">
+      All Games
+    </a>
+  </nav>
+
+  <header>
+    <h1>Noughts &amp; Crosses</h1>
+  </header>
+
+  <!-- Score bar -->
+  <div class="scores" aria-label="Scores">
+    <div class="score-block active" id="score-x" aria-label="Player X score">
+      <span class="player-label">X</span>
+      <span class="score-value" id="score-x-val">0</span>
+    </div>
+    <span class="score-divider" aria-hidden="true">–</span>
+    <div class="score-block" id="score-o" aria-label="Player O score">
+      <span class="player-label">O</span>
+      <span class="score-value" id="score-o-val">0</span>
+    </div>
+  </div>
+
+  <!-- Status message -->
+  <p class="status" id="status" aria-live="polite" aria-atomic="true">
+    X's turn
+  </p>
+
+  <!-- Game board -->
+  <div class="board-wrap">
+    <div class="board"
+         id="board"
+         aria-label="Noughts and Crosses board">
+    </div>
+  </div>
+
+  <!-- Play again -->
+  <button class="btn-play-again"
+          id="btn-play-again"
+          aria-label="Play again">
+    Play Again
+  </button>
+
+  <script>
+    // ── State ──────────────────────────────────────────────
+    const WIN_LINES = [
+      [0,1,2],[3,4,5],[6,7,8], // rows
+      [0,3,6],[1,4,7],[2,5,8], // cols
+      [0,4,8],[2,4,6]          // diagonals
+    ];
+
+    let board     = Array(9).fill(null); // null | 'X' | 'O'
+    let current   = 'X';
+    let gameOver  = false;
+    let scores    = { X: 0, O: 0 };
+
+    // ── DOM refs ───────────────────────────────────────────
+    const boardEl      = document.getElementById('board');
+    const statusEl     = document.getElementById('status');
+    const playAgainBtn = document.getElementById('btn-play-again');
+    const scoreXEl     = document.getElementById('score-x-val');
+    const scoreOEl     = document.getElementById('score-o-val');
+    const scoreXBlock  = document.getElementById('score-x');
+    const scoreOBlock  = document.getElementById('score-o');
+
+    // ── Build the 9 cells ─────────────────────────────────
+    const cells = [];
+
+    for (let i = 0; i < 9; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'cell';
+      btn.setAttribute('aria-label', `Cell ${i + 1}, empty`);
+      btn.setAttribute('tabindex', '-1');
+      btn.dataset.index = i;
+
+      // Inner span for the pop-in animation
+      const mark = document.createElement('span');
+      mark.className = 'mark';
+      mark.setAttribute('aria-hidden', 'true');
+      btn.appendChild(mark);
+
+      btn.addEventListener('click', () => handleMove(i));
+
+      boardEl.appendChild(btn);
+      cells.push(btn);
+    }
+
+    // ── Game logic ─────────────────────────────────────────
+    function handleMove(index) {
+      if (gameOver || board[index]) return;
+
+      board[index] = current;
+      renderCell(index);
+
+      const winLine = getWinLine();
+      if (winLine) {
+        endGame('win', winLine);
+      } else if (board.every(Boolean)) {
+        endGame('draw');
+      } else {
+        current = current === 'X' ? 'O' : 'X';
+        updateStatus();
+        updateScoreHighlight();
+      }
+    }
+
+    function renderCell(index) {
+      const btn  = cells[index];
+      const mark = btn.querySelector('.mark');
+      mark.textContent = board[index];
+      btn.dataset.mark = board[index];
+      btn.classList.add('filled');
+      btn.setAttribute('aria-label', `Cell ${index + 1}, ${board[index]}`);
+      btn.disabled = true;
+    }
+
+    function getWinLine() {
+      return WIN_LINES.find(([a, b, c]) =>
+        board[a] && board[a] === board[b] && board[a] === board[c]
+      ) || null;
+    }
+
+    function endGame(result, winLine) {
+      gameOver = true;
+      cells.forEach(c => { c.disabled = true; });
+
+      if (result === 'win') {
+        scores[current]++;
+        updateScores();
+        winLine.forEach(i => cells[i].classList.add('winner'));
+        statusEl.textContent = `${current} wins! 🎉`;
+        statusEl.className = 'status win';
+      } else {
+        statusEl.textContent = "It's a draw!";
+        statusEl.className = 'status draw';
+      }
+
+      playAgainBtn.classList.add('visible');
+    }
+
+    function updateStatus() {
+      statusEl.textContent = `${current}'s turn`;
+      statusEl.className = 'status';
+    }
+
+    function updateScoreHighlight() {
+      scoreXBlock.classList.toggle('active', current === 'X');
+      scoreOBlock.classList.toggle('active', current === 'O');
+    }
+
+    function updateScores() {
+      scoreXEl.textContent = scores.X;
+      scoreOEl.textContent = scores.O;
+    }
+
+    // ── Reset ──────────────────────────────────────────────
+    function resetGame() {
+      board    = Array(9).fill(null);
+      gameOver = false;
+      // Winner goes first next round; otherwise alternate
+      // Simple rule: loser (or O after draw) goes next
+      current = current === 'X' ? 'O' : 'X';
+
+      cells.forEach((btn, i) => {
+        btn.disabled   = false;
+        btn.dataset.mark = '';
+        btn.className  = 'cell';
+        btn.setAttribute('aria-label', `Cell ${i + 1}, empty`);
+        btn.querySelector('.mark').textContent = '';
+      });
+
+      updateStatus();
+      updateScoreHighlight();
+      playAgainBtn.classList.remove('visible');
+    }
+
+    playAgainBtn.addEventListener('click', resetGame);
+
+    // ── Initial state ──────────────────────────────────────
+    updateScoreHighlight();
+  </script>
+
+</body>
+</html>
