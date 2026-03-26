@@ -30,7 +30,7 @@ python -m http.server 8080
 | Noughts and Crosses | Live | `games/noughts-and-crosses/` |
 | Memory Cards | Live | `games/memory-cards/` |
 | Word Search | Live | `games/word-search/` |
-| Minesweeper | Coming soon | `games/minesweeper/` |
+| Worm Hunt (Minesweeper) | Live | `games/minesweeper/` |
 | Hangman | Live | `games/hangman/` |
 | Snake | Planned | — |
 
