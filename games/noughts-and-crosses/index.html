@@ -127,21 +127,23 @@
       min-height: 44px;
       position: relative;
       overflow: hidden;
+      /* Touch-screen polish */
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
     }
 
-    .cell:hover:not([disabled]) {
-      background-color: #ebebed;
-      transform: scale(1.04);
-      box-shadow: 0 4px 14px var(--color-shadow-hover);
+    /* Hover only on real pointer devices (not touch) */
+    @media (hover: hover) {
+      .cell:hover:not([disabled]) {
+        background-color: #ebebed;
+        transform: scale(1.04);
+        box-shadow: 0 4px 14px var(--color-shadow-hover);
+      }
     }
 
     .cell:active:not([disabled]) {
       transform: scale(0.97);
-    }
-
-    .cell:focus-visible {
-      outline: 3px solid var(--color-accent);
-      outline-offset: 2px;
     }
 
     /* Mark animations */
@@ -198,17 +200,20 @@
       visibility: visible;
     }
 
-    .btn-play-again:hover {
-      opacity: 0.85;
+    @media (hover: hover) {
+      .btn-play-again:hover {
+        opacity: 0.85;
+      }
     }
 
     .btn-play-again:active {
       transform: scale(0.97);
     }
 
-    .btn-play-again:focus-visible {
-      outline: 3px solid var(--color-accent);
-      outline-offset: 3px;
+    .btn-play-again {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
     }
   </style>
 </head>
@@ -246,7 +251,6 @@
   <div class="board-wrap">
     <div class="board"
          id="board"
-         role="grid"
          aria-label="Noughts and Crosses board">
     </div>
   </div>
@@ -286,9 +290,8 @@
     for (let i = 0; i < 9; i++) {
       const btn = document.createElement('button');
       btn.className = 'cell';
-      btn.setAttribute('role', 'gridcell');
       btn.setAttribute('aria-label', `Cell ${i + 1}, empty`);
-      btn.setAttribute('aria-pressed', 'false');
+      btn.setAttribute('tabindex', '-1');
       btn.dataset.index = i;
 
       // Inner span for the pop-in animation
@@ -298,16 +301,6 @@
       btn.appendChild(mark);
 
       btn.addEventListener('click', () => handleMove(i));
-
-      // Arrow-key navigation within the grid
-      btn.addEventListener('keydown', (e) => {
-        const dirs = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -3, ArrowDown: 3 };
-        if (dirs[e.key] !== undefined) {
-          e.preventDefault();
-          const target = i + dirs[e.key];
-          if (target >= 0 && target < 9) cells[target].focus();
-        }
-      });
 
       boardEl.appendChild(btn);
       cells.push(btn);
@@ -339,7 +332,6 @@
       btn.dataset.mark = board[index];
       btn.classList.add('filled');
       btn.setAttribute('aria-label', `Cell ${index + 1}, ${board[index]}`);
-      btn.setAttribute('aria-pressed', 'true');
       btn.disabled = true;
     }
 
@@ -365,7 +357,6 @@
       }
 
       playAgainBtn.classList.add('visible');
-      playAgainBtn.focus();
     }
 
     function updateStatus() {
@@ -396,16 +387,12 @@
         btn.dataset.mark = '';
         btn.className  = 'cell';
         btn.setAttribute('aria-label', `Cell ${i + 1}, empty`);
-        btn.setAttribute('aria-pressed', 'false');
         btn.querySelector('.mark').textContent = '';
       });
 
       updateStatus();
       updateScoreHighlight();
       playAgainBtn.classList.remove('visible');
-
-      // Return focus to the centre cell
-      cells[4].focus();
     }
 
     playAgainBtn.addEventListener('click', resetGame);
