@@ -111,6 +111,15 @@ Follow these on every file you touch:
 
 ---
 
+## Before every commit
+
+Always update `README.md` to reflect any changes made:
+- If a game status changes (e.g. from "Coming soon" to "Live"), update the Games table.
+- If a new file or folder is added, update the Project structure section if relevant.
+- If the live site URL or run instructions change, update the "Play it" section.
+
+---
+
 ## Commit message conventions
 
 ```
